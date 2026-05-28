@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "dont_do_it",
+  "version": "${version}",
+  "name": "Dont_do_it",
+  "accessWidener": "dont_do_it.accesswidener",
+  "description": "This is a test of enchanted book.",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/dont_do_it/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "me.baiyueyue.dont_do_it.client.Dont_do_itDataGenerator"
+    ],
+    "client": [
+      "me.baiyueyue.dont_do_it.client.Dont_do_itClient"
+    ],
+    "main": [
+      "me.baiyueyue.dont_do_it.Dont_do_it"
+    ]
+  },
+  "mixins": [
+    "dont_do_it.mixins.json",
+    {
+      "config": "dont_do_it.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
