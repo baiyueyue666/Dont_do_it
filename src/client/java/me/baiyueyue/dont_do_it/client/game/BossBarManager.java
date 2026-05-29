@@ -1,135 +1,122 @@
 package me.baiyueyue.dont_do_it.client.game;
 
 import me.baiyueyue.dont_do_it.game.GameSettings;
-import me.baiyueyue.dont_do_it.game.TeamColor;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ClientBossBar;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.text.Text;
 
-import java.util.*;
+import java.util.UUID;
 
 /**
- * 客户端 Boss 血条管理器 —— 用 BossBar 实时显示对手词条
+ * 客户端 Boss 血条管理器 —— 显示自己的两项信息
  *
- * 每个对手玩家拥有一个 BossBar：
- * - 名称：{玩家名}: {词条文本}
- * - 颜色：对应队伍颜色
- * - 进度：剩余生命值百分比（hearts / DEFAULT_HEARTS）
- * - 淘汰后变灰并显示划掉效果
+ * 两条固定的 BossBar：
+ * - 血量条：显示自己剩余生命值 (❤ hearts/DEFAULT_HEARTS)
+ * - 倒计时条：显示词条更换倒计时 (⏰ countdown/totalTimer)
  */
 public class BossBarManager {
 
-    /** playerId → BossBar */
-    private static final Map<UUID, ClientBossBar> bossBars = new LinkedHashMap<>();
+    /** 血量条 UUID */
+    private static final UUID HEALTH_BAR_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    /** 倒计时条 UUID */
+    private static final UUID COUNTDOWN_BAR_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-    // ==================== 全量同步 ====================
+    private static ClientBossBar healthBar;
+    private static ClientBossBar countdownBar;
+    private static boolean initialized = false;
+
+    // ==================== 初始化 ====================
 
     /**
-     * 收到 SyncAllWords 时调用 —— 批量创建/更新所有对手的 BossBar
+     * 客户端启动时调用，创建两条 BossBar 但不添加到 HUD（等游戏开始时再添加）
      */
-    public static void syncAllWords(List<BossBarEntry> entries) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        Set<UUID> currentIds = new HashSet<>();
-
-        for (BossBarEntry entry : entries) {
-            currentIds.add(entry.playerId());
-            String name = resolvePlayerName(client, entry.playerId());
-            updateOrCreateBossBar(client, entry.playerId(), name, entry);
-        }
-
-        // 移除不在当前列表中的 BossBar（有玩家退出等）
-        bossBars.keySet().removeIf(id -> {
-            if (!currentIds.contains(id)) {
-                removeBossBar(client, id);
-                return true;
-            }
-            return false;
-        });
+    public static void init() {
+        if (initialized) return;
+        initialized = true;
+        // BossBar 将在 update 时按需创建并添加到 HUD
     }
 
-    // ==================== 增量同步 ====================
+    // ==================== 更新血量条 ====================
 
     /**
-     * 收到 SyncOnePlayer 时调用 —— 更新单个对手的 BossBar
+     * 更新自己的血量 BossBar
+     * @param hearts     剩余生命值
+     * @param eliminated 是否已淘汰
      */
-    public static void syncOnePlayer(UUID playerId, String teamColorName,
-                                      String wordText, int hearts, boolean eliminated, int countdownSeconds) {
+    public static void updateHealthBar(int hearts, boolean eliminated) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String name = resolvePlayerName(client, playerId);
+        if (client.inGameHud == null) return;
 
-        BossBarEntry entry = new BossBarEntry(playerId, teamColorName, wordText, hearts,
-                eliminated, countdownSeconds);
-        updateOrCreateBossBar(client, playerId, name, entry);
+        float percent = eliminated
+                ? 0f
+                : Math.max(0f, Math.min(1f, (float) hearts / GameSettings.DEFAULT_HEARTS));
+
+        String displayStr;
+        if (eliminated) {
+            displayStr = "§c§m❤ 已淘汰";
+        } else {
+            displayStr = "§c❤ 剩余生命值: " + hearts + "/" + GameSettings.DEFAULT_HEARTS;
+        }
+        Text displayText = Text.literal(displayStr);
+
+        healthBar = replaceBossBar(client, HEALTH_BAR_ID, healthBar, displayText, percent,
+                BossBar.Color.RED, BossBar.Style.NOTCHED_10);
+    }
+
+    // ==================== 更新倒计时条 ====================
+
+    /**
+     * 更新词条更换倒计时 BossBar
+     * @param countdownSeconds 剩余秒数
+     * @param totalSeconds     总秒数（用于计算进度）
+     */
+    public static void updateCountdownBar(int countdownSeconds, int totalSeconds) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.inGameHud == null) return;
+
+        float percent = totalSeconds > 0
+                ? Math.max(0f, Math.min(1f, (float) countdownSeconds / totalSeconds))
+                : 0f;
+
+        String displayStr = "§b⏰ 词条更换倒计时: " + countdownSeconds + "s";
+        Text displayText = Text.literal(displayStr);
+
+        countdownBar = replaceBossBar(client, COUNTDOWN_BAR_ID, countdownBar, displayText, percent,
+                BossBar.Color.BLUE, BossBar.Style.NOTCHED_10);
     }
 
     // ==================== 清理 ====================
 
     /**
-     * 游戏结束或状态重置时调用 —— 移除所有 BossBar
+     * 游戏结束或状态重置时调用 —— 从 HUD 移除两条 BossBar
      */
     public static void clear() {
         MinecraftClient client = MinecraftClient.getInstance();
-        for (UUID id : new ArrayList<>(bossBars.keySet())) {
-            removeBossBar(client, id);
-        }
-        bossBars.clear();
+        if (client.inGameHud == null) return;
+
+        client.inGameHud.getBossBarHud().bossBars.remove(HEALTH_BAR_ID);
+        client.inGameHud.getBossBarHud().bossBars.remove(COUNTDOWN_BAR_ID);
+        healthBar = null;
+        countdownBar = null;
     }
 
     // ==================== 内部方法 ====================
 
-    private static void updateOrCreateBossBar(MinecraftClient client, UUID playerId,
-                                               String playerName, BossBarEntry entry) {
-        TeamColor teamColor;
-        try {
-            teamColor = TeamColor.valueOf(entry.teamColorName());
-        } catch (IllegalArgumentException e) {
-            teamColor = TeamColor.RED; // fallback
-        }
-
-        BossBar.Color color = teamColor.getBossBarColor();
-        float percent = entry.eliminated()
-                ? 0f
-                : Math.max(0f, Math.min(1f, (float) entry.hearts() / GameSettings.DEFAULT_HEARTS));
-
-        // 组装显示文本
-        String teamPrefix = teamColor.getDisplayName();
-        String wordDisplay = entry.eliminated()
-                ? "§8§m" + entry.wordText()
-                : entry.wordText();
-        Text displayText = Text.literal(teamPrefix + " §r" + playerName + ": " + wordDisplay
-                + " §c❤×" + entry.hearts());
-
-        // 先移除旧 BossBar（ClientBossBar 名称不可变，需重建）
-        ClientBossBar existing = bossBars.remove(playerId);
+    /**
+     * 替换 BossBar（因为 ClientBossBar 文本不可变，改名需重建）
+     */
+    private static ClientBossBar replaceBossBar(MinecraftClient client, UUID id,
+                                                  ClientBossBar existing, Text text, float percent,
+                                                  BossBar.Color color, BossBar.Style style) {
+        // 移除旧条
         if (existing != null) {
-            client.inGameHud.getBossBarHud().bossBars.remove(playerId);
+            client.inGameHud.getBossBarHud().bossBars.remove(id);
         }
 
-        // 创建新 BossBar 并注册到 HUD
-        ClientBossBar bar = new ClientBossBar(playerId, displayText, percent,
-                color, BossBar.Style.PROGRESS, false, false, false);
-        bossBars.put(playerId, bar);
-        client.inGameHud.getBossBarHud().bossBars.put(playerId, bar);
+        ClientBossBar bar = new ClientBossBar(id, text, percent, color, style,
+                false, false, false);
+        client.inGameHud.getBossBarHud().bossBars.put(id, bar);
+        return bar;
     }
-
-    private static void removeBossBar(MinecraftClient client, UUID playerId) {
-        client.inGameHud.getBossBarHud().bossBars.remove(playerId);
-    }
-
-    /** 从客户端世界解析玩家名 */
-    private static String resolvePlayerName(MinecraftClient client, UUID playerId) {
-        if (client.world != null) {
-            var player = client.world.getPlayerByUuid(playerId);
-            if (player != null) {
-                return player.getName().getString();
-            }
-        }
-        return "?";
-    }
-
-    // ==================== 数据载体 ====================
-
-    public record BossBarEntry(UUID playerId, String teamColorName, String wordText,
-                                int hearts, boolean eliminated, int countdownSeconds) {}
 }

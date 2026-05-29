@@ -1,5 +1,6 @@
 package me.baiyueyue.dont_do_it.client;
 
+import me.baiyueyue.dont_do_it.client.game.BossBarManager;
 import me.baiyueyue.dont_do_it.client.game.ClientPacketHandler;
 import me.baiyueyue.dont_do_it.client.game.GameHudRenderer;
 import me.baiyueyue.dont_do_it.client.screen.GameBookScreen;
@@ -24,6 +25,9 @@ public class Dont_do_itClient implements ClientModInitializer {
 
         // 注册 HUD 渲染
         GameHudRenderer.register();
+
+        // 初始化 BossBar（预创建两条血条结构）
+        BossBarManager.init();
 
         // 注册数据包接收
         ClientPacketHandler.register();

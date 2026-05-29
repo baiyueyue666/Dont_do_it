@@ -23,6 +23,7 @@ public class GamePackets {
     public static final Identifier GAME_END_ID         = Identifier.of("dont_do_it", "game_end");
     public static final Identifier REQUEST_START_ID    = Identifier.of("dont_do_it", "request_start");
     public static final Identifier UPDATE_SETTINGS_ID  = Identifier.of("dont_do_it", "update_settings");
+    public static final Identifier STATE_RESET_ID      = Identifier.of("dont_do_it", "state_reset");
 
     // ==================== S2C: 全量同步对手词条 ====================
 
@@ -45,7 +46,8 @@ public class GamePackets {
     // ==================== S2C: 增量同步单玩家状态 ====================
 
     public record SyncOnePlayerPayload(UUID playerId, String teamColor, String wordText,
-                                        int hearts, boolean eliminated, int countdownSeconds) implements CustomPayload {
+                                        int hearts, boolean eliminated, int countdownSeconds,
+                                        int totalTimerSeconds) implements CustomPayload {
         public static final Id<SyncOnePlayerPayload> ID = new Id<>(SYNC_ONE_PLAYER_ID);
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
@@ -71,6 +73,14 @@ public class GamePackets {
 
     public record RequestStartGamePayload() implements CustomPayload {
         public static final Id<RequestStartGamePayload> ID = new Id<>(REQUEST_START_ID);
+        @Override
+        public Id<? extends CustomPayload> getId() { return ID; }
+    }
+
+    // ==================== S2C: 游戏状态重置（清空客户端 HUD） ====================
+
+    public record GameStateResetPayload() implements CustomPayload {
+        public static final Id<GameStateResetPayload> ID = new Id<>(STATE_RESET_ID);
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
     }
@@ -120,10 +130,11 @@ public class GamePackets {
                             buf.writeInt(payload.hearts());
                             buf.writeBoolean(payload.eliminated());
                             buf.writeInt(payload.countdownSeconds());
+                            buf.writeInt(payload.totalTimerSeconds());
                         },
                         buf -> new SyncOnePlayerPayload(
                                 buf.readUuid(), buf.readString(), buf.readString(),
-                                buf.readInt(), buf.readBoolean(), buf.readInt())));
+                                buf.readInt(), buf.readBoolean(), buf.readInt(), buf.readInt())));
 
         PayloadTypeRegistry.playS2C().register(NotificationPayload.ID,
                 PacketCodec.of(
@@ -138,6 +149,11 @@ public class GamePackets {
                             buf.writeString(payload.teamName());
                         },
                         buf -> new GameEndPayload(buf.readUuid(), buf.readString(), buf.readString())));
+
+        PayloadTypeRegistry.playS2C().register(GameStateResetPayload.ID,
+                PacketCodec.of(
+                        (payload, buf) -> {},
+                        buf -> new GameStateResetPayload()));
 
         // ---- C2S ----
         PayloadTypeRegistry.playC2S().register(RequestStartGamePayload.ID,

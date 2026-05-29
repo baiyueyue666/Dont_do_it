@@ -11,6 +11,11 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.component.type.FireworksComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.scoreboard.ScoreAccess;
+import net.minecraft.scoreboard.ScoreboardCriterion;
+import net.minecraft.scoreboard.ScoreboardDisplaySlot;
+import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.ServerScoreboard;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.server.world.ServerWorld;
@@ -108,8 +113,21 @@ public class GameManager {
         // 创建原版计分板队伍并分配玩家
         assignVanillaTeams(server, shuffled);
 
-        // 全量同步给每个玩家
-        syncAllWords(players);
+        // 创建原版计分板 sidebar（显示所有玩家的词条+血量）
+        updateScoreboard(server);
+
+        // 同步每个玩家的自身数据（生命值/队伍/倒计时）→ BossBar + 倒计时
+        for (ServerPlayerEntity player : players) {
+            PlayerWordData selfData = playerDataMap.get(player.getUuid());
+            if (selfData != null) {
+                ServerPlayNetworking.send(player,
+                        new GamePackets.SyncOnePlayerPayload(
+                                selfData.getPlayerId(), selfData.getTeamColor().name(),
+                                selfData.getWordText(), selfData.getHearts(),
+                                selfData.isEliminated(), selfData.getCountdownSeconds(),
+                                settings.getWordChangeTimerSeconds()));
+            }
+        }
 
         // 广播开始
         server.getPlayerManager().broadcast(
@@ -124,6 +142,7 @@ public class GameManager {
         state = GameState.ENDED;
         respawnAll(server);
         removeVanillaTeams(server);
+        removeScoreboard(server);
 
         // 清空背包并发还游戏书本
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
@@ -131,6 +150,11 @@ public class GameManager {
             if (gameBookItem != null) {
                 giveGameBook(player);
             }
+        }
+
+        // 通知所有客户端重置 HUD 状态
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, new GamePackets.GameStateResetPayload());
         }
 
         playerDataMap.clear();
@@ -180,8 +204,9 @@ public class GameManager {
                     p.playSound(SoundEvents.ENTITY_ENDER_DRAGON_DEATH, 1.0f, 1.0f);
                 }
 
-                // 同步淘汰状态
+                // 同步淘汰状态 + 更新计分板
                 syncOnePlayer(server, data);
+                updateScoreboard(server);
                 checkWinCondition(server);
             } else {
                 // 扣心 + 换词条
@@ -192,6 +217,7 @@ public class GameManager {
 
                 replaceWordForPlayer(data, server);
                 syncOnePlayer(server, data);
+                updateScoreboard(server);
 
                 // 播放叮声
                 for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
@@ -212,6 +238,7 @@ public class GameManager {
         String oldWord = data.getWordText();
         replaceWordForPlayer(data, server);
         syncOnePlayer(server, data);
+        updateScoreboard(server);
 
         ServerPlayerEntity player = server.getPlayerManager().getPlayer(playerId);
         if (player != null) {
@@ -295,7 +322,8 @@ public class GameManager {
     private void syncOnePlayer(MinecraftServer server, PlayerWordData data) {
         GamePackets.SyncOnePlayerPayload payload = new GamePackets.SyncOnePlayerPayload(
                 data.getPlayerId(), data.getTeamColor().name(), data.getWordText(),
-                data.getHearts(), data.isEliminated(), data.getCountdownSeconds());
+                data.getHearts(), data.isEliminated(), data.getCountdownSeconds(),
+                settings.getWordChangeTimerSeconds());
         for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(p, payload);
         }
@@ -375,6 +403,56 @@ public class GameManager {
             if (team != null) {
                 scoreboard.removeTeam(team);
             }
+        }
+    }
+
+    // ==================== 原版计分板 Sidebar ====================
+
+    private static final String SCOREBOARD_OBJECTIVE = "ddi_words";
+
+    /** 创建/更新原版计分板 sidebar，显示所有玩家的词条和血量 */
+    private void updateScoreboard(MinecraftServer server) {
+        ServerScoreboard scoreboard = server.getScoreboard();
+
+        // 移除旧 objective 后重建（最简单可靠的方式）
+        ScoreboardObjective oldObj = scoreboard.getNullableObjective(SCOREBOARD_OBJECTIVE);
+        if (oldObj != null) {
+            scoreboard.removeObjective(oldObj);
+        }
+
+        ScoreboardObjective objective = scoreboard.addObjective(
+                SCOREBOARD_OBJECTIVE,
+                ScoreboardCriterion.DUMMY,
+                Text.literal("§6禁止事件"),
+                ScoreboardCriterion.RenderType.INTEGER,
+                false,
+                null);
+        scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, objective);
+
+        // 为每个在线玩家添加一条计分板条目
+        for (PlayerWordData data : playerDataMap.values()) {
+            ServerPlayerEntity player = server.getPlayerManager().getPlayer(data.getPlayerId());
+            if (player == null) continue;
+
+            String prefix = data.getTeamColor().getFormatting().toString();
+            String line;
+            if (data.isEliminated()) {
+                line = prefix + "§m" + player.getName().getString() + ": " + data.getWordText() + " §c✗";
+            } else {
+                line = prefix + player.getName().getString() + ": " + data.getWordText();
+            }
+
+            ScoreAccess score = scoreboard.getOrCreateScore(ScoreHolder.fromName(line), objective);
+            score.setScore(data.getHearts());
+        }
+    }
+
+    /** 移除计分板 objective */
+    private void removeScoreboard(MinecraftServer server) {
+        ServerScoreboard scoreboard = server.getScoreboard();
+        ScoreboardObjective objective = scoreboard.getNullableObjective(SCOREBOARD_OBJECTIVE);
+        if (objective != null) {
+            scoreboard.removeObjective(objective);
         }
     }
 

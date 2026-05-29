@@ -8,13 +8,16 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.Text;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 客户端 HUD 渲染器
- * - 经验条上方：剩余生命值 + 词条倒计时
- * - 屏幕左侧：对手词条列表（含队伍颜色）
  * - 屏幕中央：触发/淘汰通知（淡出效果）
+ *
+ * 注意：
+ * - 对手词条+血量 → 原版计分板 sidebar（服务端管理，自动同步）
+ * - 自己血量+倒计时 → BossBar（见 BossBarManager）
  */
 public class GameHudRenderer {
 
@@ -23,46 +26,31 @@ public class GameHudRenderer {
     public static int myHearts = 15;
     public static boolean myEliminated = false;
     public static int myCountdownSeconds = 60;
+    public static int totalTimerSeconds = 60;
     public static String myTeamColor = "RED";
-
-    /** 对手词条: playerId → (playerName, teamColor, wordText, hearts, eliminated, countdown) */
-    public static final Map<UUID, VisibleWord> visibleWords = new LinkedHashMap<>();
-
-    public record VisibleWord(String playerName, String teamColor, String wordText,
-                               int hearts, boolean eliminated, int countdownSeconds) {}
 
     /** 中央通知列表 */
     public static final List<NotificationEntry> notifications = new ArrayList<>();
 
     public record NotificationEntry(String type, String message, long createdAtMs) {}
 
-    // ---- TeamColor 颜色映射（名字→§代码） ----
-    private static final Map<String, String> TEAM_COLOR_MAP = Map.of(
-            "RED", "§c", "BLUE", "§9", "GREEN", "§a", "YELLOW", "§e",
-            "PURPLE", "§d", "ORANGE", "§6", "CYAN", "§b", "PINK", "§d"
-    );
-
     private static int tickCounter = 0;
 
     public static void register() {
         HudRenderCallback.EVENT.register(GameHudRenderer::onHudRender);
-        // 客户端每秒 tick：递减倒计时
+        // 客户端每秒 tick：递减倒计时并更新 BossBar
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (currentState != GameState.RUNNING && currentState != GameState.ENDING) return;
             tickCounter++;
             if (tickCounter % 20 != 0) return;
+
             // 自己倒计时
             if (!myEliminated && myCountdownSeconds > 0) {
                 myCountdownSeconds--;
             }
-            // 对手倒计时
-            visibleWords.replaceAll((id, vw) -> {
-                if (!vw.eliminated() && vw.countdownSeconds() > 0) {
-                    return new VisibleWord(vw.playerName(), vw.teamColor(), vw.wordText(),
-                            vw.hearts(), vw.eliminated(), vw.countdownSeconds() - 1);
-                }
-                return vw;
-            });
+            // 更新自己的 BossBar
+            BossBarManager.updateHealthBar(myHearts, myEliminated);
+            BossBarManager.updateCountdownBar(myCountdownSeconds, totalTimerSeconds);
         });
     }
 
@@ -76,71 +64,9 @@ public class GameHudRenderer {
         }
 
         int screenWidth = client.getWindow().getScaledWidth();
-        int screenHeight = client.getWindow().getScaledHeight();
 
-        // ===== 1. 经验条上方：生命值 + 倒计时 =====
-        renderAboveXpBar(context, client, screenWidth, screenHeight);
-
-        // ===== 2. 左侧：对手词条 =====
-        renderOpponentWords(context, client);
-
-        // ===== 3. 中央通知 =====
+        // ===== 中央通知 =====
         renderCenterNotifications(context, client, screenWidth);
-    }
-
-    // ==================== 经验条上方 ====================
-
-    private static void renderAboveXpBar(DrawContext context, MinecraftClient client,
-                                          int screenWidth, int screenHeight) {
-        if (myEliminated) {
-            Text text = Text.literal("§c💀 已淘汰");
-            int textWidth = client.textRenderer.getWidth(text);
-            context.drawTextWithShadow(client.textRenderer, text,
-                    screenWidth / 2 - textWidth / 2, screenHeight - 52, 0xFFFFFF);
-            return;
-        }
-
-        // 团队颜色前缀
-        String teamPrefix = TEAM_COLOR_MAP.getOrDefault(myTeamColor, "§f");
-
-        Text text = Text.literal("%s剩余生命值：§c%d §r| §e当前词条时长：§b%ds"
-                .formatted(teamPrefix, myHearts, myCountdownSeconds));
-        int textWidth = client.textRenderer.getWidth(text);
-        context.drawTextWithShadow(client.textRenderer, text,
-                screenWidth / 2 - textWidth / 2, screenHeight - 52, 0xFFFFFF);
-    }
-
-    // ==================== 左侧对手词条 ====================
-
-    private static void renderOpponentWords(DrawContext context, MinecraftClient client) {
-        if (visibleWords.isEmpty()) return;
-
-        int x = 6;
-        int y = 10;
-
-        context.drawTextWithShadow(client.textRenderer,
-                Text.literal("§6§l对手词条:"), x, y, 0xFFFFFF);
-        y += 13;
-
-        // 按队伍颜色排序
-        List<Map.Entry<UUID, VisibleWord>> sorted = new ArrayList<>(visibleWords.entrySet());
-        sorted.sort(Comparator.comparing(e -> e.getValue().teamColor()));
-
-        for (var entry : sorted) {
-            VisibleWord vw = entry.getValue();
-            String teamPrefix = TEAM_COLOR_MAP.getOrDefault(vw.teamColor(), "§f");
-
-            String line;
-            if (vw.eliminated()) {
-                line = "§8§m%s%s: %s".formatted(teamPrefix, vw.playerName(), vw.wordText());
-                context.drawTextWithShadow(client.textRenderer, Text.literal(line), x, y, 0x666666);
-            } else {
-                line = "%s%s: §f%s  §c%s".formatted(teamPrefix, vw.playerName(),
-                        vw.wordText(), "❤".repeat(Math.min(vw.hearts(), 15)));
-                context.drawTextWithShadow(client.textRenderer, Text.literal(line), x, y, 0xFFFFFF);
-            }
-            y += 11;
-        }
     }
 
     // ==================== 中央通知 ====================
@@ -169,8 +95,8 @@ public class GameHudRenderer {
             int color = (alpha << 24) | 0xFFFFFF;
             Text text = Text.literal(n.message());
             int textWidth = client.textRenderer.getWidth(text);
-            context.drawTextWithShadow(client.textRenderer, text,
-                    centerX - textWidth / 2, baseY - i * 14, color);
+            context.drawText(client.textRenderer, text,
+                    centerX - textWidth / 2, baseY - i * 14, color, true);
         }
     }
 
