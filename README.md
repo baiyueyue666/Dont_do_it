@@ -78,8 +78,8 @@
 | `/dontdoit start` | 开始游戏 |
 | `/dontdoit stop` | 强制结束游戏 |
 | `/dontdoit status` | 查看游戏状态 |
-| `/dontdoit vote <玩家> true` | 判定该玩家触发词条→猜对（加心 + 换词条） |
-| `/dontdoit vote <玩家> false` | 判定该玩家未触发词条→猜错（扣心 + 换词条） |
+| `/dontdoit vote <玩家> true` | 判定该玩家猜测词条→猜对（加心 + 换词条） |
+| `/dontdoit vote <玩家> false` | 判定该玩家猜测词条→猜错（扣心 + 换词条） |
 | `/dontdoit skip <玩家>` | 跳过该玩家当前词条（不扣心） |
 
 ---
@@ -175,8 +175,8 @@ All commands start with `/dontdoit`:
 | `/dontdoit start` | Start the game |
 | `/dontdoit stop` | Force-end the game |
 | `/dontdoit status` | View game status |
-| `/dontdoit vote <player> true` | Judge player triggered word → correct guess (+heart + new word) |
-| `/dontdoit vote <player> false` | Judge player didn't trigger → wrong guess (-heart + new word) |
+| `/dontdoit vote <player> true` | Judge player guess word → correct guess (+heart + new word) |
+| `/dontdoit vote <player> false` | Judge player guess word → wrong guess (-heart + new word) |
 | `/dontdoit skip <player>` | Skip the player's current word (no penalty) |
 
 ---
