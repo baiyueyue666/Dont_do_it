@@ -1,5 +1,6 @@
 package me.baiyueyue.dont_do_it.client.screen;
 
+import me.baiyueyue.dont_do_it.game.GameSettings;
 import me.baiyueyue.dont_do_it.network.GamePackets;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
@@ -8,62 +9,85 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
 /**
- * 游戏设置界面 —— 设置词条更换时间
+ * 游戏设置界面 —— 单独设置词条更换时间 或 特殊事件触发间隔
  */
 public class SettingsScreen extends Screen {
 
-    private static final int[] OPTIONS = {60, 120, 180};
-    private int selectedTimer;
+    public enum Mode { WORD_TIMER, SPECIAL_EVENT_TIMER }
 
-    public SettingsScreen(Text title, int currentTimer) {
+    private final Mode mode;
+    private int selectedWordTimer;
+    private int selectedSpecialEventTimer;
+
+    public SettingsScreen(Text title, int wordTimer, int specialEventTimer, Mode mode) {
         super(title);
-        this.selectedTimer = currentTimer;
+        this.selectedWordTimer = wordTimer;
+        this.selectedSpecialEventTimer = specialEventTimer;
+        this.mode = mode;
     }
 
     @Override
     protected void init() {
         super.init();
         int centerX = this.width / 2;
-        int centerY = this.height / 2;
+        int y = this.height / 2 - 60;
 
-        // 60秒
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("§e60 秒" + (selectedTimer == 60 ? " §a✔" : "")),
-                btn -> selectAndSend(60))
-                .dimensions(centerX - 100, centerY - 30, 200, 20)
-                .build());
+        if (mode == Mode.WORD_TIMER) {
+            // ---- 词条更换时间 ----
+            for (int i = 0; i < GameSettings.TIMER_OPTIONS.length; i++) {
+                int sec = GameSettings.TIMER_OPTIONS[i];
+                this.addDrawableChild(ButtonWidget.builder(
+                        Text.literal("§e" + sec + " 秒" + (selectedWordTimer == sec ? " §a✔" : "")),
+                        btn -> selectWordTimer(sec))
+                        .dimensions(centerX - 100, y + i * 22, 200, 20)
+                        .build());
+            }
+            y += GameSettings.TIMER_OPTIONS.length * 22 + 10;
+        } else {
+            // ---- 特殊事件触发间隔 ----
+            for (int i = 0; i < GameSettings.SPECIAL_EVENT_TIMER_OPTIONS.length; i++) {
+                int sec = GameSettings.SPECIAL_EVENT_TIMER_OPTIONS[i];
+                this.addDrawableChild(ButtonWidget.builder(
+                        Text.literal("§6" + sec + " 秒" + (selectedSpecialEventTimer == sec ? " §a✔" : "")),
+                        btn -> selectSpecialEventTimer(sec))
+                        .dimensions(centerX - 100, y + i * 22, 200, 20)
+                        .build());
+            }
+            y += GameSettings.SPECIAL_EVENT_TIMER_OPTIONS.length * 22 + 10;
+        }
 
-        // 120秒
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("§e120 秒" + (selectedTimer == 120 ? " §a✔" : "")),
-                btn -> selectAndSend(120))
-                .dimensions(centerX - 100, centerY, 200, 20)
-                .build());
-
-        // 180秒
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("§e180 秒" + (selectedTimer == 180 ? " §a✔" : "")),
-                btn -> selectAndSend(180))
-                .dimensions(centerX - 100, centerY + 30, 200, 20)
-                .build());
-
-        // 返回
+        // 返回（携带当前设置值回到大厅）
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("§7← 返回"),
                 btn -> {
                     if (this.client != null) {
                         this.client.setScreen(new GameBookScreen(
-                                Text.literal("§6不要做挑战")));
+                                Text.literal("§6不要做挑战"),
+                                selectedWordTimer, selectedSpecialEventTimer));
                     }
                 })
-                .dimensions(centerX - 100, centerY + 60, 200, 20)
+                .dimensions(centerX - 100, y, 200, 20)
                 .build());
     }
 
-    private void selectAndSend(int seconds) {
-        selectedTimer = seconds;
-        ClientPlayNetworking.send(new GamePackets.UpdateSettingsPayload(seconds));
-        // 重建按钮以更新勾选标记
+    private void selectWordTimer(int seconds) {
+        selectedWordTimer = seconds;
+        sendSettings();
+        rebuild();
+    }
+
+    private void selectSpecialEventTimer(int seconds) {
+        selectedSpecialEventTimer = seconds;
+        sendSettings();
+        rebuild();
+    }
+
+    private void sendSettings() {
+        ClientPlayNetworking.send(new GamePackets.UpdateSettingsFullPayload(
+                selectedWordTimer, selectedSpecialEventTimer));
+    }
+
+    private void rebuild() {
         this.clearChildren();
         this.init();
     }
@@ -74,9 +98,16 @@ public class SettingsScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
 
         int centerX = this.width / 2;
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 40, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("§7词条更换时间"), centerX, 70, 0xAAAAAA);
+        int y = this.height / 2 - 80;
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, y, 0xFFFFFF);
+        y += 25;
+        if (mode == Mode.WORD_TIMER) {
+            context.drawCenteredTextWithShadow(this.textRenderer,
+                    Text.literal("§7选择词条更换倒计时"), centerX, y, 0xAAAAAA);
+        } else {
+            context.drawCenteredTextWithShadow(this.textRenderer,
+                    Text.literal("§7选择特殊事件触发倒计时"), centerX, y, 0xAAAAAA);
+        }
     }
 
     @Override

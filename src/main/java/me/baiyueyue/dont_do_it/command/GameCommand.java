@@ -1,23 +1,30 @@
 package me.baiyueyue.dont_do_it.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import me.baiyueyue.dont_do_it.game.GameManager;
 import net.minecraft.command.CommandRegistryAccess;
+import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 
+import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 /**
  * 游戏控制命令 —— /dontdoit
  *
  * 用法:
- *   /dontdoit start  —— 开始游戏
- *   /dontdoit stop   —— 强制结束
- *   /dontdoit status —— 查看状态
+ *   /dontdoit start              —— 开始游戏
+ *   /dontdoit stop               —— 强制结束
+ *   /dontdoit status             —— 查看状态
+ *   /dontdoit vote <玩家> true   —— 猜对加心并换词条
+ *   /dontdoit vote <玩家> false  —— 猜错扣心并换词条
+ *   /dontdoit skip <玩家>        —— 跳过当前词条
  */
 public class GameCommand {
 
@@ -33,6 +40,13 @@ public class GameCommand {
                         .then(literal("start").executes(GameCommand::startGame))
                         .then(literal("stop").executes(GameCommand::stopGame))
                         .then(literal("status").executes(GameCommand::showStatus))
+                        .then(literal("vote")
+                                .then(argument("player", EntityArgumentType.player())
+                                        .then(argument("correct", BoolArgumentType.bool())
+                                                .executes(GameCommand::votePlayer))))
+                        .then(literal("skip")
+                                .then(argument("player", EntityArgumentType.player())
+                                        .executes(GameCommand::skipPlayer)))
         );
     }
 
@@ -63,6 +77,31 @@ public class GameCommand {
         int playerCount = gm.getAllPlayerData().size();
         ctx.getSource().sendFeedback(() ->
                 Text.literal("§6[不要做挑战] §f状态: %s  §f| 参与玩家: §b%d".formatted(state, playerCount)), false);
+        return 1;
+    }
+
+    // ---- vote / skip ----
+
+    private static int votePlayer(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        GameManager gm = GameManager.getInstance();
+        if (!gm.isRunning()) {
+            ctx.getSource().sendFeedback(() -> Text.literal("§e游戏当前未在运行。"), false);
+            return 0;
+        }
+        ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "player");
+        boolean correct = BoolArgumentType.getBool(ctx, "correct");
+        gm.voteOnPlayer(ctx.getSource().getServer(), target, correct);
+        return 1;
+    }
+
+    private static int skipPlayer(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        GameManager gm = GameManager.getInstance();
+        if (!gm.isRunning()) {
+            ctx.getSource().sendFeedback(() -> Text.literal("§e游戏当前未在运行。"), false);
+            return 0;
+        }
+        ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "player");
+        gm.skipPlayerWord(ctx.getSource().getServer(), target);
         return 1;
     }
 }

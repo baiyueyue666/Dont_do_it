@@ -61,6 +61,17 @@ public class Dont_do_it implements ModInitializer {
                             Text.literal("§a✔ 词条更换时间已设为 §e%d 秒".formatted(payload.timerSeconds())), true);
                 });
 
+        // 客户端更新完整设置（含特殊事件）
+        ServerPlayNetworking.registerGlobalReceiver(GamePackets.UpdateSettingsFullPayload.ID,
+                (payload, context) -> {
+                    var settings = GameManager.getInstance().getSettings();
+                    settings.setWordChangeTimerSeconds(payload.wordTimerSeconds());
+                    settings.setSpecialEventTimerSeconds(payload.specialEventTimerSeconds());
+                    context.player().sendMessage(
+                            Text.literal("§a✔ 词条更换: §e%d秒 §7| §a特殊事件间隔: §6%d秒"
+                                    .formatted(payload.wordTimerSeconds(), payload.specialEventTimerSeconds())), true);
+                });
+
         // 玩家加入时给予书本（仅在 WAITING 状态下发放）
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
             if (entity instanceof ServerPlayerEntity player) {

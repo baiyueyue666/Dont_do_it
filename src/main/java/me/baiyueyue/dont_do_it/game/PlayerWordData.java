@@ -51,6 +51,13 @@ public class PlayerWordData {
         return eliminated;
     }
 
+    /** 加一颗心 */
+    public void addHeart() {
+        if (!eliminated) {
+            hearts++;
+        }
+    }
+
     public void resetHearts(int initialHearts) {
         this.hearts = initialHearts;
         this.eliminated = false;

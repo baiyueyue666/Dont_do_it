@@ -4,7 +4,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * 每人独立词条倒计时管理器 —— 每秒 tick 一次
+ * 每人独立词条倒计时 + 全局特殊事件倒计时管理器 —— 每秒 tick 一次
  */
 public class GameCountdownManager {
 
@@ -15,19 +15,23 @@ public class GameCountdownManager {
     }
 
     private static void onServerTick(MinecraftServer server) {
-        if (!GameManager.getInstance().isRunning()) return;
+        GameManager gm = GameManager.getInstance();
+        if (!gm.isRunning()) return;
 
         tickCounter++;
         // 每秒执行一次（20 ticks = 1 秒）
         if (tickCounter % 20 != 0) return;
 
-        for (PlayerWordData data : GameManager.getInstance().getAllPlayerData()) {
+        // ---- 每人词条倒计时 ----
+        for (PlayerWordData data : gm.getAllPlayerData()) {
             if (data.isEliminated()) continue;
             boolean expired = data.tickCountdown();
             if (expired) {
-                // onWordTimerExpired 内部会 replaceWord 并重设倒计时
-                GameManager.getInstance().onWordTimerExpired(server, data.getPlayerId());
+                gm.onWordTimerExpired(server, data.getPlayerId());
             }
         }
+
+        // ---- 全局特殊事件计时 ----
+        gm.tickSpecialEvent(server);
     }
 }

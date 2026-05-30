@@ -21,9 +21,12 @@ public class BossBarManager {
     private static final UUID HEALTH_BAR_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     /** 倒计时条 UUID */
     private static final UUID COUNTDOWN_BAR_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    /** 特殊事件条 UUID */
+    private static final UUID SPECIAL_EVENT_BAR_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
 
     private static ClientBossBar healthBar;
     private static ClientBossBar countdownBar;
+    private static ClientBossBar specialEventBar;
     private static boolean initialized = false;
 
     // ==================== 初始化 ====================
@@ -64,6 +67,31 @@ public class BossBarManager {
                 BossBar.Color.RED, BossBar.Style.NOTCHED_10);
     }
 
+    // ==================== 更新特殊事件条 ====================
+
+    /**
+     * 更新特殊事件 BossBar（共用一个血条：显示倒计时或持续时间）
+     * @param displayText     显示文本
+     * @param percent         进度 0~1
+     * @param color           血条颜色
+     */
+    public static void updateSpecialEventBar(String displayText, float percent, BossBar.Color color) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.inGameHud == null) return;
+
+        Text text = Text.literal(displayText);
+        specialEventBar = replaceBossBar(client, SPECIAL_EVENT_BAR_ID, specialEventBar, text, percent,
+                color, BossBar.Style.NOTCHED_10);
+    }
+
+    /** 移除特殊事件条 */
+    public static void removeSpecialEventBar() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.inGameHud == null) return;
+        client.inGameHud.getBossBarHud().bossBars.remove(SPECIAL_EVENT_BAR_ID);
+        specialEventBar = null;
+    }
+
     // ==================== 更新倒计时条 ====================
 
     /**
@@ -97,8 +125,10 @@ public class BossBarManager {
 
         client.inGameHud.getBossBarHud().bossBars.remove(HEALTH_BAR_ID);
         client.inGameHud.getBossBarHud().bossBars.remove(COUNTDOWN_BAR_ID);
+        client.inGameHud.getBossBarHud().bossBars.remove(SPECIAL_EVENT_BAR_ID);
         healthBar = null;
         countdownBar = null;
+        specialEventBar = null;
     }
 
     // ==================== 内部方法 ====================

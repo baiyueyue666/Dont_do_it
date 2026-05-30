@@ -24,6 +24,7 @@ public class GamePackets {
     public static final Identifier REQUEST_START_ID    = Identifier.of("dont_do_it", "request_start");
     public static final Identifier UPDATE_SETTINGS_ID  = Identifier.of("dont_do_it", "update_settings");
     public static final Identifier STATE_RESET_ID      = Identifier.of("dont_do_it", "state_reset");
+    public static final Identifier SPECIAL_EVENT_BOSSBAR_ID = Identifier.of("dont_do_it", "special_event_bossbar");
 
     // ==================== S2C: 全量同步对手词条 ====================
 
@@ -89,6 +90,22 @@ public class GamePackets {
 
     public record UpdateSettingsPayload(int timerSeconds) implements CustomPayload {
         public static final Id<UpdateSettingsPayload> ID = new Id<>(UPDATE_SETTINGS_ID);
+        @Override
+        public Id<? extends CustomPayload> getId() { return ID; }
+    }
+
+    // ==================== C2S: 更新设置（含特殊事件） ====================
+
+    public record UpdateSettingsFullPayload(int wordTimerSeconds, int specialEventTimerSeconds) implements CustomPayload {
+        public static final Id<UpdateSettingsFullPayload> ID = new Id<>(Identifier.of("dont_do_it", "update_settings_full"));
+        @Override
+        public Id<? extends CustomPayload> getId() { return ID; }
+    }
+
+    // ==================== S2C: 特殊事件 BossBar 同步 ====================
+
+    public record SpecialEventBossBarPayload(String displayText, float percent, String barColor, int countdownSeconds) implements CustomPayload {
+        public static final Id<SpecialEventBossBarPayload> ID = new Id<>(SPECIAL_EVENT_BOSSBAR_ID);
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
     }
@@ -165,5 +182,22 @@ public class GamePackets {
                 PacketCodec.of(
                         (payload, buf) -> buf.writeInt(payload.timerSeconds()),
                         buf -> new UpdateSettingsPayload(buf.readInt())));
+
+        PayloadTypeRegistry.playC2S().register(UpdateSettingsFullPayload.ID,
+                PacketCodec.of(
+                        (payload, buf) -> { buf.writeInt(payload.wordTimerSeconds()); buf.writeInt(payload.specialEventTimerSeconds()); },
+                        buf -> new UpdateSettingsFullPayload(buf.readInt(), buf.readInt())));
+
+        // ---- S2C: 特殊事件 BossBar ----
+        PayloadTypeRegistry.playS2C().register(SpecialEventBossBarPayload.ID,
+                PacketCodec.of(
+                        (payload, buf) -> {
+                            buf.writeString(payload.displayText());
+                            buf.writeFloat(payload.percent());
+                            buf.writeString(payload.barColor());
+                            buf.writeInt(payload.countdownSeconds());
+                        },
+                        buf -> new SpecialEventBossBarPayload(
+                                buf.readString(), buf.readFloat(), buf.readString(), buf.readInt())));
     }
 }

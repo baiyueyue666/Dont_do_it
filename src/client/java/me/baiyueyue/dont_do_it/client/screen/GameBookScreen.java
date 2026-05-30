@@ -10,14 +10,21 @@ import net.minecraft.text.Text;
 
 /**
  * 游戏大厅界面 —— 手持书本右键打开
- * 两个按钮：开始游戏 / 游戏设置
+ * 三个按钮：开始游戏 / 词条更换倒计时 / 特殊事件触发倒计时
  */
 public class GameBookScreen extends Screen {
 
-    private int currentTimer = 60; // 默认值
+    private int wordTimer = 60; // 默认值
+    private int specialEventTimer = 180; // 默认值
 
     public GameBookScreen(Text title) {
         super(title);
+    }
+
+    public GameBookScreen(Text title, int wordTimer, int specialEventTimer) {
+        super(title);
+        this.wordTimer = wordTimer;
+        this.specialEventTimer = specialEventTimer;
     }
 
     @Override
@@ -36,20 +43,29 @@ public class GameBookScreen extends Screen {
                 .dimensions(centerX - 100, centerY - 30, 200, 20)
                 .build());
 
-        // 游戏设置按钮
+        // 词条更换倒计时按钮
         this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("§e⚙ 游戏设置"),
+                Text.literal("§e⏱ 词条更换倒计时"),
                 btn -> {
-                    GameBookItem.requestOpenSettings(currentTimer);
+                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, "WORD_TIMER");
                 })
                 .dimensions(centerX - 100, centerY, 200, 20)
+                .build());
+
+        // 特殊事件触发倒计时按钮
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("§6⚡ 特殊事件触发倒计时"),
+                btn -> {
+                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, "SPECIAL_EVENT_TIMER");
+                })
+                .dimensions(centerX - 100, centerY + 25, 200, 20)
                 .build());
 
         // 关闭按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("§7✕ 关闭"),
                 btn -> this.close())
-                .dimensions(centerX - 100, centerY + 30, 200, 20)
+                .dimensions(centerX - 100, centerY + 55, 200, 20)
                 .build());
     }
 

@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.*;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.component.DataComponentTypes;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -17,32 +18,46 @@ import java.util.*;
 /**
  * 词条触发检测器 —— 注册 Fabric API 事件，匹配玩家行为与词条
  *
- * Tick 轮询事件（潜行/疾跑/跳跃）使用状态变化检测，只在第一次触发时上报，
+ * Tick 轮询事件（潜行/疾跑）使用状态变化检测，只在第一次触发时上报，
  * 后续连续状态不再重复触发。
  */
 public class WordTriggerDetector {
 
-    // 记录玩家上一次的潜行/疾跑/着地状态
+    // 记录玩家上一次的潜行/疾跑/进食状态
     private static final Map<UUID, Boolean> wasSneaking = new HashMap<>();
     private static final Map<UUID, Boolean> wasSprinting = new HashMap<>();
-    private static final Map<UUID, Boolean> wasOnGround = new HashMap<>();
+    private static final Map<UUID, Boolean> wasUsingFood = new HashMap<>();
 
     public static void register() {
 
-        // ---- 攻击生物 ----
+        // ---- 攻击生物（除玩家外） ----
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (player instanceof ServerPlayerEntity sp && entity != null && world instanceof ServerWorld sw) {
+            if (player instanceof ServerPlayerEntity sp && entity != null && world instanceof ServerWorld sw
+                    && !(entity instanceof ServerPlayerEntity)) {
                 GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.ATTACK);
             }
             return ActionResult.PASS;
         });
 
-        // ---- 破坏方块 ----
-        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+        // ---- 打怪（仅对敌对生物造成伤害后触发） ----
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
+            if (amount > 0 && entity instanceof HostileEntity
+                    && source.getAttacker() instanceof ServerPlayerEntity sp
+                    && sp.getEntityWorld() instanceof ServerWorld sw) {
+                GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.ATTACK_HOSTILE);
+            }
+        });
+
+        // ---- 破坏方块（破坏完后触发） ----
+        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (player instanceof ServerPlayerEntity sp && world instanceof ServerWorld sw) {
                 GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.BLOCK_BREAK);
+                // 挖矿：仅矿物方块
+                String blockId = state.getBlock().getRegistryEntry().registryKey().getValue().getPath();
+                if (isOreBlock(blockId)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_ORE);
+                }
             }
-            return true;
         });
 
         // ---- 放置方块 ----
@@ -72,18 +87,10 @@ public class WordTriggerDetector {
             }
         });
 
-        // ---- 吃东西 ----
-        UseItemCallback.EVENT.register((player, world, hand) -> {
-            if (player instanceof ServerPlayerEntity sp && world instanceof ServerWorld sw) {
-                var stack = sp.getStackInHand(hand);
-                if (stack.contains(DataComponentTypes.FOOD)) {
-                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.EAT);
-                }
-            }
-            return ActionResult.PASS;
-        });
+        // ---- 吃东西（吃完后触发） ----
+        // 通过 tick 轮询检测进食完成（见 onServerTick）
 
-        // ---- Tick 轮询：潜行/疾跑/跳跃状态变化检测 ----
+        // ---- Tick 轮询：潜行/疾跑状态变化检测 ----
         ServerTickEvents.END_SERVER_TICK.register(WordTriggerDetector::onServerTick);
     }
 
@@ -106,11 +113,12 @@ public class WordTriggerDetector {
                 GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.SPRINT);
             }
 
-            boolean onGround = player.isOnGround();
-            Boolean prevGround = wasOnGround.put(id, onGround);
-            // 从不在地面→在地面，说明刚落地=完成了一次跳跃
-            if (onGround && prevGround != null && !prevGround) {
-                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.JUMP);
+            // 进食检测：从正在吃→不再吃=吃完
+            boolean usingFood = player.isUsingItem()
+                    && player.getActiveItem().contains(DataComponentTypes.FOOD);
+            Boolean prevUsingFood = wasUsingFood.put(id, usingFood);
+            if (!usingFood && prevUsingFood != null && prevUsingFood) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.EAT);
             }
         }
 
@@ -119,7 +127,12 @@ public class WordTriggerDetector {
                 server.getPlayerManager().getPlayerList().stream().map(p -> (UUID)p.getUuid()).toList());
         wasSprinting.keySet().retainAll(
                 server.getPlayerManager().getPlayerList().stream().map(p -> (UUID)p.getUuid()).toList());
-        wasOnGround.keySet().retainAll(
+        wasUsingFood.keySet().retainAll(
                 server.getPlayerManager().getPlayerList().stream().map(p -> (UUID)p.getUuid()).toList());
+    }
+
+    /** 判断方块 ID 是否为矿物（含原版矿石和深板岩变种） */
+    private static boolean isOreBlock(String blockId) {
+        return blockId.contains("_ore") || blockId.equals("ancient_debris");
     }
 }

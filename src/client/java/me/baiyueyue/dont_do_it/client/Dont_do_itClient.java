@@ -18,9 +18,14 @@ public class Dont_do_itClient implements ClientModInitializer {
             net.minecraft.client.MinecraftClient.getInstance()
                     .setScreen(new GameBookScreen(Text.literal("§6不要做挑战")));
         });
-        GameBookItem.setSettingsOpener(currentTimer -> {
+        GameBookItem.setSettingsOpener((wordTimer, specialEventTimer, mode) -> {
+            var modeEnum = "SPECIAL_EVENT_TIMER".equals(mode)
+                    ? SettingsScreen.Mode.SPECIAL_EVENT_TIMER
+                    : SettingsScreen.Mode.WORD_TIMER;
+            String title = modeEnum == SettingsScreen.Mode.WORD_TIMER
+                    ? "§6词条更换倒计时" : "§6特殊事件触发倒计时";
             net.minecraft.client.MinecraftClient.getInstance()
-                    .setScreen(new SettingsScreen(Text.literal("§6游戏设置"), currentTimer));
+                    .setScreen(new SettingsScreen(Text.literal(title), wordTimer, specialEventTimer, modeEnum));
         });
 
         // 注册 HUD 渲染

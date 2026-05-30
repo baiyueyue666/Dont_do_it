@@ -20,14 +20,11 @@ public class WordPool {
 
     /** 初始化默认测试词条 */
     private void initDefaultWords() {
-        add("jump_01",    "跳跃",          TriggerType.JUMP);
-        add("jump_02",    "蹦起来",         TriggerType.JUMP);
         add("sneak_01",   "潜行",          TriggerType.SNEAK);
-        add("sneak_02",   "蹲下走",         TriggerType.SNEAK);
         add("attack_01",  "攻击生物",       TriggerType.ATTACK);
-        add("attack_02",  "打怪",          TriggerType.ATTACK);
+        add("attack_02",  "打怪",          TriggerType.ATTACK_HOSTILE);
         add("break_01",   "破坏方块",       TriggerType.BLOCK_BREAK);
-        add("break_02",   "挖矿",          TriggerType.BLOCK_BREAK);
+        add("break_02",   "挖矿",          TriggerType.MINE_ORE);
         add("place_01",   "放置方块",       TriggerType.BLOCK_PLACE);
         add("place_02",   "搭方块",         TriggerType.BLOCK_PLACE);
         add("chat_01",    "发送聊天消息",    TriggerType.CHAT);

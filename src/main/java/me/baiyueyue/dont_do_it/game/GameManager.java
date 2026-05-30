@@ -11,15 +11,9 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.component.type.FireworksComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.scoreboard.ScoreAccess;
-import net.minecraft.scoreboard.ScoreboardCriterion;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.ServerScoreboard;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
@@ -44,6 +38,7 @@ public class GameManager {
     private GameState state = GameState.WAITING;
     private final GameSettings settings = new GameSettings();
     private final WordPool wordPool = new WordPool();
+    private final SpecialEventPool specialEventPool = new SpecialEventPool();
     private final Map<UUID, PlayerWordData> playerDataMap = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
@@ -52,6 +47,15 @@ public class GameManager {
 
     /** 记录每个玩家每种触发类型的上次触发 tick，用于冷却（防潜行/疾跑连发） */
     private final Map<UUID, Map<TriggerType, Long>> lastTriggerTick = new ConcurrentHashMap<>();
+
+    // ==================== 特殊事件状态 ====================
+
+    /** 特殊事件触发倒计时（秒），从设置值倒计时到 0 时触发 */
+    private int specialEventCountdown = 0;
+    /** 当前激活的特殊事件类型，null 表示无活动事件 */
+    private SpecialEventType activeSpecialEvent = null;
+    /** 当前特殊事件剩余持续时间（秒），仅对有持续时长的活动事件有效 */
+    private int activeSpecialEventRemaining = 0;
 
     private GameManager() {}
 
@@ -105,6 +109,11 @@ public class GameManager {
 
         state = GameState.RUNNING;
 
+        // 初始化特殊事件倒计时
+        specialEventCountdown = settings.getSpecialEventTimerSeconds();
+        activeSpecialEvent = null;
+        activeSpecialEventRemaining = 0;
+
         // 清空所有玩家背包
         for (ServerPlayerEntity player : players) {
             player.getInventory().clear();
@@ -113,19 +122,11 @@ public class GameManager {
         // 创建原版计分板队伍并分配玩家
         assignVanillaTeams(server, shuffled);
 
-        // 创建原版计分板 sidebar（显示所有玩家的词条+血量）
-        updateScoreboard(server);
-
-        // 同步每个玩家的自身数据（生命值/队伍/倒计时）→ BossBar + 倒计时
+        // 同步每个玩家的数据到全体（客户端据此区分自己/对手）
         for (ServerPlayerEntity player : players) {
             PlayerWordData selfData = playerDataMap.get(player.getUuid());
             if (selfData != null) {
-                ServerPlayNetworking.send(player,
-                        new GamePackets.SyncOnePlayerPayload(
-                                selfData.getPlayerId(), selfData.getTeamColor().name(),
-                                selfData.getWordText(), selfData.getHearts(),
-                                selfData.isEliminated(), selfData.getCountdownSeconds(),
-                                settings.getWordChangeTimerSeconds()));
+                syncOnePlayer(server, selfData);
             }
         }
 
@@ -140,9 +141,15 @@ public class GameManager {
      */
     public void endGame(MinecraftServer server) {
         state = GameState.ENDED;
+
+        // 清理特殊事件
+        activeSpecialEvent = null;
+        activeSpecialEventRemaining = 0;
+        specialEventCountdown = 0;
+        removeSpecialEventBossBar(server);
+
         respawnAll(server);
         removeVanillaTeams(server);
-        removeScoreboard(server);
 
         // 清空背包并发还游戏书本
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
@@ -204,9 +211,8 @@ public class GameManager {
                     p.playSound(SoundEvents.ENTITY_ENDER_DRAGON_DEATH, 1.0f, 1.0f);
                 }
 
-                // 同步淘汰状态 + 更新计分板
+                // 同步淘汰状态
                 syncOnePlayer(server, data);
-                updateScoreboard(server);
                 checkWinCondition(server);
             } else {
                 // 扣心 + 换词条
@@ -217,7 +223,6 @@ public class GameManager {
 
                 replaceWordForPlayer(data, server);
                 syncOnePlayer(server, data);
-                updateScoreboard(server);
 
                 // 播放叮声
                 for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
@@ -238,12 +243,190 @@ public class GameManager {
         String oldWord = data.getWordText();
         replaceWordForPlayer(data, server);
         syncOnePlayer(server, data);
-        updateScoreboard(server);
 
         ServerPlayerEntity player = server.getPlayerManager().getPlayer(playerId);
         if (player != null) {
             player.sendMessage(Text.literal("§7⏰ 你的词条「" + oldWord + "」已过期，已更换为新词条"), true);
         }
+    }
+
+    // ==================== 特殊事件计时 ====================
+
+    /**
+     * 每秒 tick，由 GameCountdownManager 调用
+     * 处理特殊事件触发倒计时和活动事件的持续时间
+     */
+    public void tickSpecialEvent(MinecraftServer server) {
+        if (!isRunning()) return;
+
+        if (activeSpecialEvent != null) {
+            // 有活动中的特殊事件
+            if (!activeSpecialEvent.isInstant() && activeSpecialEventRemaining > 0) {
+                activeSpecialEventRemaining--;
+                syncSpecialEventBossBar(server, activeSpecialEvent.getDisplayName()
+                                + " - " + activeSpecialEventRemaining + "s 剩余",
+                        (float) activeSpecialEventRemaining / activeSpecialEvent.getDurationSeconds(),
+                        activeSpecialEvent.getBossBarColor());
+
+                if (activeSpecialEventRemaining <= 0) {
+                    // 事件结束
+                    server.getPlayerManager().broadcast(
+                            Text.literal("§a✅ 特殊事件「" + activeSpecialEvent.getDisplayName() + "」已结束！"), false);
+                    activeSpecialEvent = null;
+                    // 重新开始特殊事件触发倒计时
+                    specialEventCountdown = settings.getSpecialEventTimerSeconds();
+                    syncSpecialEventBossBar(server);
+                }
+            }
+        } else {
+            // 没有活动事件，倒计时触发下一个
+            if (specialEventCountdown > 0) {
+                specialEventCountdown--;
+                syncSpecialEventBossBar(server);
+
+                if (specialEventCountdown <= 0) {
+                    // 触发随机特殊事件
+                    triggerSpecialEvent(server);
+                }
+            }
+        }
+    }
+
+    /** 触发一个随机特殊事件 */
+    private void triggerSpecialEvent(MinecraftServer server) {
+        SpecialEventType type = specialEventPool.drawRandom();
+        activeSpecialEvent = type;
+
+        // 执行事件
+        int duration = specialEventPool.executeEvent(server, type);
+
+        if (type.isInstant()) {
+            // 瞬时事件，立即结束
+            activeSpecialEvent = null;
+            specialEventCountdown = settings.getSpecialEventTimerSeconds();
+            syncSpecialEventBossBar(server);
+        } else {
+            // 有持续时长的特殊事件
+            activeSpecialEventRemaining = duration;
+            syncSpecialEventBossBar(server, type.getDisplayName()
+                            + " - " + activeSpecialEventRemaining + "s 剩余",
+                    1.0f, type.getBossBarColor());
+        }
+    }
+
+    /** 同步特殊事件 BossBar（倒计时模式） */
+    private void syncSpecialEventBossBar(MinecraftServer server) {
+        int total = settings.getSpecialEventTimerSeconds();
+        float percent = total > 0 ? (float) specialEventCountdown / total : 0f;
+        String text = "§6⚡ 特殊事件将在 " + specialEventCountdown + "s 后触发";
+        GamePackets.SpecialEventBossBarPayload payload = new GamePackets.SpecialEventBossBarPayload(
+                text, percent, "YELLOW", specialEventCountdown);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+    }
+
+    /** 同步特殊事件 BossBar（活动期间模式） */
+    private void syncSpecialEventBossBar(MinecraftServer server, String displayText, float percent,
+                                          net.minecraft.entity.boss.BossBar.Color color) {
+        GamePackets.SpecialEventBossBarPayload payload = new GamePackets.SpecialEventBossBarPayload(
+                "§c" + displayText, percent, color.name(), activeSpecialEventRemaining);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+    }
+
+    /** 移除特殊事件 BossBar */
+    private void removeSpecialEventBossBar(MinecraftServer server) {
+        GamePackets.SpecialEventBossBarPayload payload = new GamePackets.SpecialEventBossBarPayload(
+                "", 0f, "WHITE", -1);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+        // 客户端在收到 percent=0 时移除条
+    }
+
+    // ==================== 管理员指令 ====================
+
+    /**
+     * 管理员判断玩家猜词条是否正确
+     * @param correct true=猜对加一颗心，false=猜错扣两颗心
+     */
+    public void voteOnPlayer(MinecraftServer server, ServerPlayerEntity target, boolean correct) {
+        if (!isRunning()) return;
+
+        PlayerWordData data = playerDataMap.get(target.getUuid());
+        if (data == null || data.isEliminated()) return;
+
+        String teamName = data.getTeamColor().getDisplayName();
+        String playerName = target.getName().getString();
+        String oldWord = data.getWordText();
+
+        if (correct) {
+            // 猜对：加一颗心 + 换词条
+            data.addHeart();
+            replaceWordForPlayer(data, server);
+            syncOnePlayer(server, data);
+
+            String msg = "§a✅ " + teamName + " " + playerName + " §f猜对了！加一颗心，当前词条：「§b"
+                    + oldWord + "§f」 ❤×§c" + data.getHearts();
+            server.getPlayerManager().broadcast(Text.literal(msg), false);
+            broadcastNotification(server, "trigger", msg);
+        } else {
+            // 猜错：扣两颗心 + 换词条
+            boolean eliminated = false;
+            data.loseHeart();
+            if (data.isEliminated()) {
+                eliminated = true;
+            } else {
+                data.loseHeart();
+                if (data.isEliminated()) eliminated = true;
+            }
+
+            replaceWordForPlayer(data, server);
+            syncOnePlayer(server, data);
+
+            if (eliminated) {
+                String eliminationMsg = "§c💀 " + teamName + " " + playerName
+                        + " §f猜错被淘汰！（当前词条：「§b" + oldWord + "§f」）";
+                server.getPlayerManager().broadcast(Text.literal(eliminationMsg), false);
+                broadcastNotification(server, "elimination", eliminationMsg);
+
+                target.changeGameMode(GameMode.SPECTATOR);
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    p.playSound(SoundEvents.ENTITY_ENDER_DRAGON_DEATH, 1.0f, 1.0f);
+                }
+                checkWinCondition(server);
+            } else {
+                String msg = "§c❌ " + teamName + " " + playerName + " §f猜错了！扣两颗心，当前词条：「§b"
+                        + oldWord + "§f」 ❤×§c" + data.getHearts();
+                server.getPlayerManager().broadcast(Text.literal(msg), false);
+                broadcastNotification(server, "trigger", msg);
+
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    p.playSound(SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 1.5f);
+                }
+            }
+        }
+    }
+
+    /**
+     * 管理员跳过当前词条（用于测试时跳过未能正确触发的词条）
+     */
+    public void skipPlayerWord(MinecraftServer server, ServerPlayerEntity target) {
+        if (!isRunning()) return;
+
+        PlayerWordData data = playerDataMap.get(target.getUuid());
+        if (data == null || data.isEliminated()) return;
+
+        String oldWord = data.getWordText();
+        replaceWordForPlayer(data, server);
+        syncOnePlayer(server, data);
+
+        String teamName = data.getTeamColor().getDisplayName();
+        String playerName = target.getName().getString();
+        server.getPlayerManager().broadcast(Text.literal(
+                "§7⏭ " + teamName + " " + playerName + " §f的词条已跳过「§b" + oldWord + "§f」"), false);
     }
 
     // ==================== 内部方法 ====================
@@ -403,56 +586,6 @@ public class GameManager {
             if (team != null) {
                 scoreboard.removeTeam(team);
             }
-        }
-    }
-
-    // ==================== 原版计分板 Sidebar ====================
-
-    private static final String SCOREBOARD_OBJECTIVE = "ddi_words";
-
-    /** 创建/更新原版计分板 sidebar，显示所有玩家的词条和血量 */
-    private void updateScoreboard(MinecraftServer server) {
-        ServerScoreboard scoreboard = server.getScoreboard();
-
-        // 移除旧 objective 后重建（最简单可靠的方式）
-        ScoreboardObjective oldObj = scoreboard.getNullableObjective(SCOREBOARD_OBJECTIVE);
-        if (oldObj != null) {
-            scoreboard.removeObjective(oldObj);
-        }
-
-        ScoreboardObjective objective = scoreboard.addObjective(
-                SCOREBOARD_OBJECTIVE,
-                ScoreboardCriterion.DUMMY,
-                Text.literal("§6禁止事件"),
-                ScoreboardCriterion.RenderType.INTEGER,
-                false,
-                null);
-        scoreboard.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, objective);
-
-        // 为每个在线玩家添加一条计分板条目
-        for (PlayerWordData data : playerDataMap.values()) {
-            ServerPlayerEntity player = server.getPlayerManager().getPlayer(data.getPlayerId());
-            if (player == null) continue;
-
-            String prefix = data.getTeamColor().getFormatting().toString();
-            String line;
-            if (data.isEliminated()) {
-                line = prefix + "§m" + player.getName().getString() + ": " + data.getWordText() + " §c✗";
-            } else {
-                line = prefix + player.getName().getString() + ": " + data.getWordText();
-            }
-
-            ScoreAccess score = scoreboard.getOrCreateScore(ScoreHolder.fromName(line), objective);
-            score.setScore(data.getHearts());
-        }
-    }
-
-    /** 移除计分板 objective */
-    private void removeScoreboard(MinecraftServer server) {
-        ServerScoreboard scoreboard = server.getScoreboard();
-        ScoreboardObjective objective = scoreboard.getNullableObjective(SCOREBOARD_OBJECTIVE);
-        if (objective != null) {
-            scoreboard.removeObjective(objective);
         }
     }
 

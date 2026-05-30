@@ -4,14 +4,22 @@ import me.baiyueyue.dont_do_it.game.GameState;
 import me.baiyueyue.dont_do_it.network.GamePackets;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.boss.BossBar;
 import net.minecraft.text.Text;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 客户端接收服务端同步数据，更新自身状态和 BossBar
  *
- * 对手词条+血量由原版计分板 sidebar 自动同步，无需在此处理。
+ * 对手词条+血量由客户端自行渲染（从 SyncOnePlayerPayload 提取非自身数据）。
  */
 public class ClientPacketHandler {
+
+    /** 对手数据缓存：UUID → 对手词条/血量/队伍等 */
+    public static final Map<UUID, GameHudRenderer.OpponentEntry> opponentMap = new ConcurrentHashMap<>();
 
     public static void register() {
 
@@ -32,8 +40,12 @@ public class ClientPacketHandler {
                             BossBarManager.updateHealthBar(payload.hearts(), payload.eliminated());
                             BossBarManager.updateCountdownBar(
                                     payload.countdownSeconds(), payload.totalTimerSeconds());
+                        } else {
+                            // 是其他玩家：存储对手词条/血量，供 HUD 渲染
+                            opponentMap.put(payload.playerId(), new GameHudRenderer.OpponentEntry(
+                                    payload.playerId(), payload.teamColor(), payload.wordText(),
+                                    payload.hearts(), payload.eliminated()));
                         }
-                        // 对手状态由原版计分板 sidebar 自动同步，无需处理
                     });
                 });
 
@@ -72,7 +84,27 @@ public class ClientPacketHandler {
                         GameHudRenderer.currentState = GameState.WAITING;
                         GameHudRenderer.notifications.clear();
                         GameHudRenderer.myEliminated = false;
+                        opponentMap.clear();
                         BossBarManager.clear();
+                    });
+                });
+
+        // ---- 特殊事件 BossBar 同步 ----
+        ClientPlayNetworking.registerGlobalReceiver(GamePackets.SpecialEventBossBarPayload.ID,
+                (payload, context) -> {
+                    context.client().execute(() -> {
+                        if (payload.displayText().isEmpty() || payload.percent() <= 0f) {
+                            BossBarManager.removeSpecialEventBar();
+                            return;
+                        }
+                        BossBar.Color color;
+                        try {
+                            color = BossBar.Color.valueOf(payload.barColor());
+                        } catch (IllegalArgumentException e) {
+                            color = BossBar.Color.WHITE;
+                        }
+                        BossBarManager.updateSpecialEventBar(
+                                payload.displayText(), payload.percent(), color);
                     });
                 });
     }

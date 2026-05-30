@@ -1,22 +1,23 @@
 package me.baiyueyue.dont_do_it.client.game;
 
 import me.baiyueyue.dont_do_it.game.GameState;
+import me.baiyueyue.dont_do_it.game.TeamColor;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * 客户端 HUD 渲染器
  * - 屏幕中央：触发/淘汰通知（淡出效果）
+ * - 屏幕左侧：对手词条+血量列表
  *
  * 注意：
- * - 对手词条+血量 → 原版计分板 sidebar（服务端管理，自动同步）
  * - 自己血量+倒计时 → BossBar（见 BossBarManager）
  */
 public class GameHudRenderer {
@@ -33,6 +34,10 @@ public class GameHudRenderer {
     public static final List<NotificationEntry> notifications = new ArrayList<>();
 
     public record NotificationEntry(String type, String message, long createdAtMs) {}
+
+    /** 对手数据条目（由 ClientPacketHandler 填充） */
+    public record OpponentEntry(UUID playerId, String teamColor, String wordText,
+                                 int hearts, boolean eliminated) {}
 
     private static int tickCounter = 0;
 
@@ -64,9 +69,13 @@ public class GameHudRenderer {
         }
 
         int screenWidth = client.getWindow().getScaledWidth();
+        int screenHeight = client.getWindow().getScaledHeight();
 
         // ===== 中央通知 =====
         renderCenterNotifications(context, client, screenWidth);
+
+        // ===== 左侧对手列表 =====
+        renderOpponentList(context, client, screenWidth, screenHeight);
     }
 
     // ==================== 中央通知 ====================
@@ -97,6 +106,74 @@ public class GameHudRenderer {
             int textWidth = client.textRenderer.getWidth(text);
             context.drawText(client.textRenderer, text,
                     centerX - textWidth / 2, baseY - i * 14, color, true);
+        }
+    }
+
+    // ==================== 左侧对手列表 ====================
+
+    private static void renderOpponentList(DrawContext context, MinecraftClient client,
+                                            int screenWidth, int screenHeight) {
+        Map<UUID, OpponentEntry> opponents = ClientPacketHandler.opponentMap;
+        if (opponents.isEmpty()) return;
+
+        // 标题
+        String title = "◤ 禁止事件 ◢";
+        int leftX = 5;
+        int y = 10;
+        context.drawText(client.textRenderer, Text.literal(title), leftX, y, 0xFFDAA520, true);
+        y += 14;
+
+        // 分隔线
+        int titleWidth = client.textRenderer.getWidth(title);
+        context.fill(leftX, y, leftX + Math.max(titleWidth, 120), y + 1, 0x40FFFFFF);
+        y += 3;
+
+        for (OpponentEntry entry : opponents.values()) {
+            // 获取玩家名称
+            String playerName;
+            PlayerEntity player = client.world.getPlayerByUuid(entry.playerId());
+            if (player != null) {
+                playerName = player.getName().getString();
+            } else {
+                playerName = "?";
+            }
+
+            // 队伍颜色
+            int teamColor;
+            try {
+                teamColor = TeamColor.valueOf(entry.teamColor()).getColorRgb() | 0xFF000000;
+            } catch (IllegalArgumentException e) {
+                teamColor = 0xFFFFFFFF; // 回退白色
+            }
+
+            if (entry.eliminated()) {
+                // 淘汰：队伍色名+词条 + 灰色 ✗
+                String prefix = playerName + ": ";
+                int prefixWidth = client.textRenderer.getWidth(prefix);
+
+                String wordPart = entry.wordText();
+                int wordWidth = client.textRenderer.getWidth(wordPart);
+
+                String crossPart = " ✗";
+
+                context.drawText(client.textRenderer, Text.literal(prefix), leftX, y, teamColor, true);
+                context.drawText(client.textRenderer, Text.literal(wordPart), leftX + prefixWidth, y, teamColor, true);
+                context.drawText(client.textRenderer, Text.literal(crossPart), leftX + prefixWidth + wordWidth, y, 0xFF888888, true);
+            } else {
+                // 正常：玩家名+词条 → 队伍色，血量 → 红色
+                String prefix = playerName + ": ";
+                int prefixWidth = client.textRenderer.getWidth(prefix);
+
+                String wordPart = entry.wordText();
+                int wordWidth = client.textRenderer.getWidth(wordPart);
+
+                String heartPart = " ❤×" + entry.hearts();
+
+                context.drawText(client.textRenderer, Text.literal(prefix), leftX, y, teamColor, true);
+                context.drawText(client.textRenderer, Text.literal(wordPart), leftX + prefixWidth, y, teamColor, true);
+                context.drawText(client.textRenderer, Text.literal(heartPart), leftX + prefixWidth + wordWidth, y, 0xFFFF5555, true);
+            }
+            y += 12;
         }
     }
 
