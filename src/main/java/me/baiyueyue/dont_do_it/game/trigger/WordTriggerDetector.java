@@ -52,10 +52,23 @@ public class WordTriggerDetector {
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (player instanceof ServerPlayerEntity sp && world instanceof ServerWorld sw) {
                 GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.BLOCK_BREAK);
-                // 挖矿：仅矿物方块
                 String blockId = state.getBlock().getRegistryEntry().registryKey().getValue().getPath();
+                // 挖矿：仅矿物方块
                 if (isOreBlock(blockId)) {
                     GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_ORE);
+                }
+                // 细分矿石类型
+                TriggerType specificOre = getSpecificOreType(blockId);
+                if (specificOre != null) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, specificOre);
+                }
+                // 挖掘木头
+                if (isWoodBlock(blockId)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_WOOD);
+                }
+                // 挖掘石头
+                if (isStoneBlock(blockId)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_STONE);
                 }
             }
         });
@@ -134,5 +147,28 @@ public class WordTriggerDetector {
     /** 判断方块 ID 是否为矿物（含原版矿石和深板岩变种） */
     private static boolean isOreBlock(String blockId) {
         return blockId.contains("_ore") || blockId.equals("ancient_debris");
+    }
+
+    /** 判断方块 ID 是否为木头/原木/菌柄类 */
+    private static boolean isWoodBlock(String blockId) {
+        return blockId.endsWith("_log") || blockId.endsWith("_wood")
+                || blockId.endsWith("_stem") || blockId.endsWith("_hyphae")
+                || blockId.equals("bamboo_block");
+    }
+
+    /** 判断方块 ID 是否为石头/圆石类 */
+    private static boolean isStoneBlock(String blockId) {
+        return blockId.equals("stone") || blockId.equals("cobblestone")
+                || blockId.equals("mossy_cobblestone");
+    }
+
+    /** 根据方块 ID 返回对应的细分矿石触发类型，非矿石返回 null */
+    private static TriggerType getSpecificOreType(String blockId) {
+        if (blockId.contains("coal_ore"))       return TriggerType.MINE_COAL;
+        if (blockId.contains("iron_ore"))       return TriggerType.MINE_IRON;
+        if (blockId.contains("copper_ore"))     return TriggerType.MINE_COPPER;
+        if (blockId.contains("gold_ore"))       return TriggerType.MINE_GOLD;
+        if (blockId.contains("diamond_ore"))    return TriggerType.MINE_DIAMOND;
+        return null;
     }
 }

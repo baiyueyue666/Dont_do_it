@@ -429,6 +429,30 @@ public class GameManager {
                 "§7⏭ " + teamName + " " + playerName + " §f的词条已跳过「§b" + oldWord + "§f」"), false);
     }
 
+    /**
+     * 管理员为玩家设置指定词条（用于测试）
+     * @param wordText 词条显示文本，需与词条池中完全匹配
+     */
+    public boolean setPlayerWord(MinecraftServer server, ServerPlayerEntity target, String wordText) {
+        if (!isRunning()) return false;
+
+        PlayerWordData data = playerDataMap.get(target.getUuid());
+        if (data == null || data.isEliminated()) return false;
+
+        WordPool.WordEntry entry = wordPool.findByDisplayText(wordText);
+        if (entry == null) return false;
+
+        String oldWord = data.getWordText();
+        data.replaceWord(entry, settings.getWordChangeTimerSeconds());
+        syncOnePlayer(server, data);
+
+        String teamName = data.getTeamColor().getDisplayName();
+        String playerName = target.getName().getString();
+        server.getPlayerManager().broadcast(Text.literal(
+                "§6📝 " + teamName + " " + playerName + " §f的词条更换为「§b" + wordText + "§f」（原词条：「§7" + oldWord + "§f」）"), false);
+        return true;
+    }
+
     // ==================== 内部方法 ====================
 
     private void replaceWordForPlayer(PlayerWordData data, MinecraftServer server) {
