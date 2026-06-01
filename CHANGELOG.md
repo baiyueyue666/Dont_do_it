@@ -1,5 +1,32 @@
 # 开发日志
 
+## 2026-06-01
+
+### 1. 新增合成类触发词条（10 种）
+- **TriggerType.java** — 新增 10 个合成类枚举值：
+  - `CRAFT_CRAFTING_TABLE`（合成工作台）
+  - `CRAFT_WOODEN_PICKAXE` / `CRAFT_STONE_PICKAXE` / `CRAFT_IRON_PICKAXE`（镐）
+  - `CRAFT_WOODEN_AXE` / `CRAFT_STONE_AXE` / `CRAFT_IRON_AXE`（斧）
+  - `CRAFT_WOODEN_SWORD` / `CRAFT_STONE_SWORD` / `CRAFT_IRON_SWORD`（剑）
+- **WordPool.java** — 新增 10 个对应词条
+
+### 2. 新增 CraftingResultSlotMixin
+- **新增 CraftingResultSlotMixin.java** — 监听 `CraftingResultSlot.onTakeItem`，当玩家从工作台或背包 2×2 合成格取出成品时触发对应词条判定
+- 覆盖工作台和生存背包合成两种场景
+- ✅ 已验证："合成木剑" 词条可正常触发
+
+### 3. 修复拾取原木检测（1.21.11 兼容性）
+- **问题**：1.21.11 中 `ItemEntity` 不再覆写 `Entity.onPlayerCollision`，前序版本的 Mixin 注入完全无效
+- **ItemEntityMixin.java** — 将 `@Mixin(ItemEntity.class)` 改为 `@Mixin(Entity.class)` + `instanceof ItemEntity` 检查
+- **新增 PlayerInventoryMixin.java** — 注入 `PlayerInventory.insertStack` / `offerOrDrop` / `addStack` 作为物品入库的备选检测路径
+- **dont_do_it.mixins.json** — 注册两个新 Mixin
+
+### 4. 词条文案调整
+- "拾取木头" → **"拾取原木"**（TriggerType 显示名 + WordPool 词条文本）
+- `isWoodItem` 匹配范围收窄：原 `_log/_wood/_stem/_hyphae/bamboo_block` → 仅 `_log`
+
+---
+
 ## 2026-05-30
 
 ### 1. 删除"蹦起来"事件

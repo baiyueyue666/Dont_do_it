@@ -35,6 +35,30 @@ public class WordPool {
         add("drop_01",    "丢弃物品",       TriggerType.DROP_ITEM);
         add("container_01","打开容器",       TriggerType.OPEN_CONTAINER);
         add("pickup_01",  "捡起物品",       TriggerType.PICKUP_ITEM);
+
+        // ---- 挖掘类 ----
+        add("mine_wood_01",   "挖掘木头",       TriggerType.MINE_WOOD);
+        add("mine_stone_01",  "挖掘石头",       TriggerType.MINE_STONE);
+        add("mine_coal_01",   "挖掘煤矿",       TriggerType.MINE_COAL);
+        add("mine_iron_01",   "挖掘铁矿",       TriggerType.MINE_IRON);
+        add("mine_copper_01", "挖掘铜矿",       TriggerType.MINE_COPPER);
+        add("mine_gold_01",   "挖掘金矿",       TriggerType.MINE_GOLD);
+        add("mine_diamond_01","挖掘钻石矿",      TriggerType.MINE_DIAMOND);
+
+        // ---- 拾取类 ----
+        add("pickup_wood_01", "拾取原木",       TriggerType.PICKUP_WOOD);
+
+        // ---- 合成类 ----
+        add("craft_table_01",       "合成工作台", TriggerType.CRAFT_CRAFTING_TABLE);
+        add("craft_wooden_pickaxe", "合成木镐",   TriggerType.CRAFT_WOODEN_PICKAXE);
+        add("craft_stone_pickaxe",  "合成石镐",   TriggerType.CRAFT_STONE_PICKAXE);
+        add("craft_iron_pickaxe",   "合成铁镐",   TriggerType.CRAFT_IRON_PICKAXE);
+        add("craft_wooden_axe",     "合成木斧",   TriggerType.CRAFT_WOODEN_AXE);
+        add("craft_stone_axe",      "合成石斧",   TriggerType.CRAFT_STONE_AXE);
+        add("craft_iron_axe",       "合成铁斧",   TriggerType.CRAFT_IRON_AXE);
+        add("craft_wooden_sword",   "合成木剑",   TriggerType.CRAFT_WOODEN_SWORD);
+        add("craft_stone_sword",    "合成石剑",   TriggerType.CRAFT_STONE_SWORD);
+        add("craft_iron_sword",     "合成铁剑",   TriggerType.CRAFT_IRON_SWORD);
     }
 
     public void add(String id, String displayText, TriggerType type) {
@@ -58,4 +82,14 @@ public class WordPool {
 
     public List<WordEntry> getAllWords() { return Collections.unmodifiableList(allWords); }
     public int size() { return allWords.size(); }
+
+    /** 根据显示文本查找词条，找不到返回 null */
+    public WordEntry findByDisplayText(String displayText) {
+        for (WordEntry entry : allWords) {
+            if (entry.displayText().equals(displayText)) {
+                return entry;
+            }
+        }
+        return null;
+    }
 }

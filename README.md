@@ -37,25 +37,24 @@
 
 ---
 
-## 🎯 词条类型（共 13 种触发行为）
+## 🎯 词条类型（共 35 种词条，12 类触发行为）
 
-| 词条 | 触发行为 |
-|------|----------|
+| 词条示例 | 触发行为 |
+|----------|----------|
 | 潜行 | 按下潜行键（Shift） |
-| 攻击生物 | 攻击任何生物 |
-| 打怪 | 攻击敌对生物 |
-| 破坏方块 | 破坏任意方块 |
-| 挖矿 | 挖掘矿石类方块 |
-| 放置方块 | 放置任意方块 |
-| 搭方块 | 放置任意方块 |
-| 发送聊天消息 | 在聊天栏发送消息 |
-| 打字说话 | 在聊天栏发送消息 |
+| 攻击生物 / 打怪 | 攻击任何生物 / 攻击敌对生物 |
+| 破坏方块 / 挖矿 | 破坏任意方块 / 挖掘矿石类方块 |
+| 放置方块 / 搭方块 | 放置任意方块 |
+| 发送聊天消息 / 打字说话 | 在聊天栏发送消息 |
 | 受到伤害 | 受到任何来源的伤害 |
 | 吃东西 | 进食 |
 | 疾跑 | 按下疾跑键 |
 | 丢弃物品 | 丢弃物品栏中的物品 |
 | 打开容器 | 打开箱子、熔炉等容器 |
 | 捡起物品 | 捡起地面上的掉落物 |
+| 拾取原木 | 捡起原木 |
+| 挖掘木头 / 石头 / 煤矿 / 铁矿 / 铜矿 / 金矿 / 钻石矿 | 破坏对应方块 |
+| 合成工作台 / 木镐 / 石镐 / 铁镐 / 木斧 / 石斧 / 铁斧 / 木剑 / 石剑 / 铁剑 | 在工作台/背包合成对应物品 |
 
 ---
 
@@ -134,25 +133,24 @@ Configurable via the Game Book:
 
 ---
 
-## 🎯 Trigger Types (13 Behavior Types)
+## 🎯 Trigger Types (35 Word Entries, 12 Trigger Categories)
 
-| Word | Trigger Behavior |
-|------|-----------------|
+| Word Examples | Trigger Behavior |
+|---------------|-----------------|
 | Sneak | Press the sneak key (Shift) |
-| Attack Mobs | Attack any creature |
-| Attack Hostile | Attack hostile mobs |
-| Break Block | Destroy any block |
-| Mine Ore | Mine ore-type blocks |
-| Place Block | Place any block |
-| Build Blocks | Place any block |
-| Send Chat | Send a message in chat |
-| Type in Chat | Send a message in chat |
+| Attack Mobs / Attack Hostile | Attack any creature / Attack hostile mobs |
+| Break Block / Mine Ore | Destroy any block / Mine ore-type blocks |
+| Place Block / Build Blocks | Place any block |
+| Send Chat / Type in Chat | Send a message in chat |
 | Take Damage | Take damage from any source |
 | Eat Food | Eat something |
 | Sprint | Press the sprint key |
 | Drop Item | Drop an item from inventory |
 | Open Container | Open chests, furnaces, etc. |
 | Pickup Item | Pick up items from the ground |
+| Pickup Log | Pick up a log |
+| Mine Wood / Stone / Coal / Iron / Copper / Gold / Diamond Ore | Break the corresponding block |
+| Craft Crafting Table / Wooden/Stone/Iron Pickaxe / Axe / Sword | Craft the corresponding item |
 
 ---
 
