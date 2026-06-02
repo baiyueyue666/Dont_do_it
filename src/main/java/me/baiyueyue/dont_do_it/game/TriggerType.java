@@ -40,7 +40,64 @@ public enum TriggerType {
     CRAFT_IRON_AXE("合成铁斧"),
     CRAFT_WOODEN_SWORD("合成木剑"),
     CRAFT_STONE_SWORD("合成石剑"),
-    CRAFT_IRON_SWORD("合成铁剑");
+    CRAFT_IRON_SWORD("合成铁剑"),
+
+    // ---- 视角方向类 ----
+    LOOK_DOWN("低头"),
+    LOOK_UP("抬头"),
+    LOOK_EAST("看向东方"),
+    LOOK_SOUTH("看向南方"),
+    LOOK_WEST("看向西方"),
+    LOOK_NORTH("看向北方"),
+
+    // ---- 持续行为类 ----
+    STAND_STILL_5S("禁止不动五秒"),
+    LOOK_SAME_DIR_5S("持续看向一个方向五秒"),
+
+    // ---- 环境状态类 ----
+    ENCLOSED_1X2("自闭"),
+    SUBMERGED("沉入水中"),
+
+    // ---- 挖掘细分 ----
+    MINE_ANDESITE("挖掘安山岩"),
+    MINE_DIORITE("挖掘闪长岩"),
+    MINE_DEEPSLATE("挖掘深板岩"),
+
+    // ---- 站立方块类 ----
+    STAND_ON_GRASS("站在草方块上"),
+    STAND_ON_LEAVES("站在树叶上"),
+    STAND_ON_STONE("站在石头上"),
+    STAND_ON_DEEPSLATE("站在深板岩上"),
+    STAND_ON_ANDESITE("站在安山岩上"),
+    STAND_ON_DIORITE("站在闪长岩上"),
+
+    // ---- 浮空 ----
+    FLOATING("浮空"),
+
+    // ---- 死亡/复活类 ----
+    DEATH("死亡"),
+    RESPAWN("复活"),
+    NOT_RESPAWN_3S("三秒不复活"),
+    NOT_RESPAWN_5S("五秒不复活"),
+    NOT_RESPAWN_10S("十秒不复活"),
+
+    // ---- 拾取细分 ----
+    PICKUP_DIAMOND("获得钻石"),
+
+    // ---- 背包物品类 ----
+    HAS_COAL("背包里有煤炭"),
+    HAS_IRON_INGOT("背包里有铁锭"),
+    HAS_COPPER_INGOT("背包里有铜锭"),
+    HAS_CRAFTING_TABLE("背包里有工作台"),
+    HAS_FURNACE("背包里有熔炉"),
+    HAS_AXE("背包里有斧头"),
+    HAS_SWORD("背包里有剑"),
+    HAS_STONE_PICKAXE("背包里有石镐"),
+    HAS_WOODEN_PICKAXE("背包里有木镐"),
+    HAS_IRON_PICKAXE("背包里有铁镐"),
+    HAS_ROTTEN_FLESH("背包里有腐肉"),
+    HAS_DIAMOND("背包里有钻石"),
+    HAS_DIRT("背包里有泥土");
 
     private final String displayName;
 

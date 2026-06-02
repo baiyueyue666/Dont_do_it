@@ -37,13 +37,14 @@
 
 ---
 
-## 🎯 词条类型（共 35 种词条，12 类触发行为）
+## 🎯 词条类型（共 71 种词条，18 类触发行为）
 
 | 词条示例 | 触发行为 |
 |----------|----------|
 | 潜行 | 按下潜行键（Shift） |
 | 攻击生物 / 打怪 | 攻击任何生物 / 攻击敌对生物 |
 | 破坏方块 / 挖矿 | 破坏任意方块 / 挖掘矿石类方块 |
+| 破坏安山岩 / 闪长岩 / 深板岩 | 破坏对应方块 |
 | 放置方块 / 搭方块 | 放置任意方块 |
 | 发送聊天消息 / 打字说话 | 在聊天栏发送消息 |
 | 受到伤害 | 受到任何来源的伤害 |
@@ -52,9 +53,15 @@
 | 丢弃物品 | 丢弃物品栏中的物品 |
 | 打开容器 | 打开箱子、熔炉等容器 |
 | 捡起物品 | 捡起地面上的掉落物 |
-| 拾取原木 | 捡起原木 |
+| 拾取原木 / 获得钻石 | 捡起特定物品 |
 | 挖掘木头 / 石头 / 煤矿 / 铁矿 / 铜矿 / 金矿 / 钻石矿 | 破坏对应方块 |
 | 合成工作台 / 木镐 / 石镐 / 铁镐 / 木斧 / 石斧 / 铁斧 / 木剑 / 石剑 / 铁剑 | 在工作台/背包合成对应物品 |
+| 低头 / 抬头 / 看向东/南/西/北 | 视角方向变化 |
+| 禁止不动五秒 / 持续看向一个方向五秒 | 持续行为检测 |
+| 自闭（被方块包围）/ 沉入水中 / 浮空 | 环境状态检测 |
+| 站在草方块/树叶/石头/深板岩/安山岩/闪长岩上 | 站立方块检测 |
+| 死亡 / 复活 / 三/五/十秒不复活 | 死亡与复活事件 |
+| 背包里有XX（煤炭/铁锭/铜锭/工作台/熔炉/斧头/剑/各类镐/腐肉/钻石/泥土） | 背包物品存在性检测 |
 
 ---
 
@@ -133,13 +140,14 @@ Configurable via the Game Book:
 
 ---
 
-## 🎯 Trigger Types (35 Word Entries, 12 Trigger Categories)
+## 🎯 Trigger Types (71 Word Entries, 18 Trigger Categories)
 
 | Word Examples | Trigger Behavior |
 |---------------|-----------------|
 | Sneak | Press the sneak key (Shift) |
 | Attack Mobs / Attack Hostile | Attack any creature / Attack hostile mobs |
 | Break Block / Mine Ore | Destroy any block / Mine ore-type blocks |
+| Mine Andesite / Diorite / Deepslate | Break the corresponding block |
 | Place Block / Build Blocks | Place any block |
 | Send Chat / Type in Chat | Send a message in chat |
 | Take Damage | Take damage from any source |
@@ -148,9 +156,15 @@ Configurable via the Game Book:
 | Drop Item | Drop an item from inventory |
 | Open Container | Open chests, furnaces, etc. |
 | Pickup Item | Pick up items from the ground |
-| Pickup Log | Pick up a log |
+| Pickup Log / Pickup Diamond | Pick up specific items |
 | Mine Wood / Stone / Coal / Iron / Copper / Gold / Diamond Ore | Break the corresponding block |
 | Craft Crafting Table / Wooden/Stone/Iron Pickaxe / Axe / Sword | Craft the corresponding item |
+| Look Down / Look Up / Look East/South/West/North | View direction change |
+| Stand Still 5s / Look Same Direction 5s | Sustained behavior detection |
+| Enclosed (1x2) / Submerged / Floating | Environmental state detection |
+| Stand on Grass/Leaves/Stone/Deepslate/Andesite/Diorite | Standing block detection |
+| Death / Respawn / No Respawn 3s/5s/10s | Death and respawn events |
+| Has XX in Inventory (Coal/Iron/Copper/Crafting Table/Furnace/Axe/Sword/Pickaxes/Rotten Flesh/Diamond/Dirt) | Inventory existence check |
 
 ---
 

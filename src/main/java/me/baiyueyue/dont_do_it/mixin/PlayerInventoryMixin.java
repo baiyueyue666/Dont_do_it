@@ -67,11 +67,23 @@ public class PlayerInventoryMixin {
         String itemId = stack.getItem().getRegistryEntry()
                 .registryKey().getValue().getPath();
 
-        // 只检查原木（_log 结尾）
+        // 通用拾取
+        GameManager.getInstance().onPlayerTriggered(
+                ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.PICKUP_ITEM);
+
+        // 原木（_log 结尾）
         if (itemId.endsWith("_log")) {
             GameManager.getInstance().onPlayerTriggered(
                     ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.PICKUP_WOOD);
             LOGGER.info("[Dont_do_it] PICKUP_WOOD 触发: itemId={}, count={}",
+                    itemId, stack.getCount());
+        }
+
+        // 钻石
+        if (itemId.equals("diamond")) {
+            GameManager.getInstance().onPlayerTriggered(
+                    ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.PICKUP_DIAMOND);
+            LOGGER.info("[Dont_do_it] PICKUP_DIAMOND 触发: itemId={}, count={}",
                     itemId, stack.getCount());
         }
     }

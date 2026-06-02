@@ -1,5 +1,6 @@
 package me.baiyueyue.dont_do_it.game;
 
+import me.baiyueyue.dont_do_it.game.trigger.WordTriggerDetector;
 import me.baiyueyue.dont_do_it.network.GamePackets;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
@@ -82,6 +83,7 @@ public class GameManager {
 
         playerDataMap.clear();
         lastTriggerTick.clear();
+        WordTriggerDetector.clearAllState();
         List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
 
         if (players.size() < 2) {

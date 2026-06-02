@@ -59,6 +59,63 @@ public class WordPool {
         add("craft_wooden_sword",   "合成木剑",   TriggerType.CRAFT_WOODEN_SWORD);
         add("craft_stone_sword",    "合成石剑",   TriggerType.CRAFT_STONE_SWORD);
         add("craft_iron_sword",     "合成铁剑",   TriggerType.CRAFT_IRON_SWORD);
+
+        // ---- 视角方向类 ----
+        add("look_down_01",      "低头",                 TriggerType.LOOK_DOWN);
+        add("look_up_01",        "抬头",                 TriggerType.LOOK_UP);
+        add("look_east_01",      "看向东方",              TriggerType.LOOK_EAST);
+        add("look_south_01",     "看向南方",              TriggerType.LOOK_SOUTH);
+        add("look_west_01",      "看向西方",              TriggerType.LOOK_WEST);
+        add("look_north_01",     "看向北方",              TriggerType.LOOK_NORTH);
+
+        // ---- 持续行为类 ----
+        add("stand_still_01",    "禁止不动五秒",          TriggerType.STAND_STILL_5S);
+        add("look_same_dir_01",  "持续看向一个方向五秒",   TriggerType.LOOK_SAME_DIR_5S);
+
+        // ---- 环境状态类 ----
+        add("enclosed_01",       "自闭",                 TriggerType.ENCLOSED_1X2);
+        add("submerged_01",      "沉入水中",              TriggerType.SUBMERGED);
+
+        // ---- 挖掘细分 ----
+        add("mine_andesite_01",  "挖掘安山岩",            TriggerType.MINE_ANDESITE);
+        add("mine_diorite_01",   "挖掘闪长岩",            TriggerType.MINE_DIORITE);
+        add("mine_deepslate_01", "挖掘深板岩",            TriggerType.MINE_DEEPSLATE);
+
+        // ---- 站立方块类 ----
+        add("stand_grass_01",    "站在草方块上",          TriggerType.STAND_ON_GRASS);
+        add("stand_leaves_01",   "站在树叶上",            TriggerType.STAND_ON_LEAVES);
+        add("stand_stone_01",    "站在石头上",            TriggerType.STAND_ON_STONE);
+        add("stand_deepslate_01","站在深板岩上",          TriggerType.STAND_ON_DEEPSLATE);
+        add("stand_andesite_01", "站在安山岩上",          TriggerType.STAND_ON_ANDESITE);
+        add("stand_diorite_01",  "站在闪长岩上",          TriggerType.STAND_ON_DIORITE);
+
+        // ---- 浮空 ----
+        add("floating_01",       "浮空",                 TriggerType.FLOATING);
+
+        // ---- 死亡/复活类 ----
+        add("death_01",          "死亡",                 TriggerType.DEATH);
+        add("respawn_01",        "复活",                 TriggerType.RESPAWN);
+        add("not_respawn_3s",    "三秒不复活",            TriggerType.NOT_RESPAWN_3S);
+        add("not_respawn_5s",    "五秒不复活",            TriggerType.NOT_RESPAWN_5S);
+        add("not_respawn_10s",   "十秒不复活",            TriggerType.NOT_RESPAWN_10S);
+
+        // ---- 拾取细分 ----
+        add("pickup_diamond_01", "获得钻石",              TriggerType.PICKUP_DIAMOND);
+
+        // ---- 背包物品类 ----
+        add("has_coal_01",       "背包里有煤炭",           TriggerType.HAS_COAL);
+        add("has_iron_01",       "背包里有铁锭",           TriggerType.HAS_IRON_INGOT);
+        add("has_copper_01",     "背包里有铜锭",           TriggerType.HAS_COPPER_INGOT);
+        add("has_table_01",      "背包里有工作台",         TriggerType.HAS_CRAFTING_TABLE);
+        add("has_furnace_01",    "背包里有熔炉",           TriggerType.HAS_FURNACE);
+        add("has_axe_01",        "背包里有斧头",           TriggerType.HAS_AXE);
+        add("has_sword_01",      "背包里有剑",             TriggerType.HAS_SWORD);
+        add("has_spick_01",      "背包里有石镐",           TriggerType.HAS_STONE_PICKAXE);
+        add("has_wpick_01",      "背包里有木镐",           TriggerType.HAS_WOODEN_PICKAXE);
+        add("has_ipick_01",      "背包里有铁镐",           TriggerType.HAS_IRON_PICKAXE);
+        add("has_flesh_01",      "背包里有腐肉",           TriggerType.HAS_ROTTEN_FLESH);
+        add("has_diamond_01",    "背包里有钻石",           TriggerType.HAS_DIAMOND);
+        add("has_dirt_01",       "背包里有泥土",           TriggerType.HAS_DIRT);
     }
 
     public void add(String id, String displayText, TriggerType type) {

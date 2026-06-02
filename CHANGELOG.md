@@ -1,5 +1,66 @@
 # 开发日志
 
+## 2026-06-02
+
+### 1. 新增视角方向类词条（6 种）
+- **TriggerType.java** — 新增 6 个视角方向枚举：
+  - `LOOK_DOWN`（低头）、`LOOK_UP`（抬头）
+  - `LOOK_EAST` / `LOOK_SOUTH` / `LOOK_WEST` / `LOOK_NORTH`（看向东/南/西/北）
+- **WordPool.java** — 新增 6 个对应词条
+- **WordTriggerDetector.java** — tick 轮询中基于 pitch/yaw 边缘检测触发（仅刚进入该状态时触发一次）
+
+### 2. 新增持续行为类词条（2 种）
+- `STAND_STILL_5S`（禁止不动五秒）— 连续 100 tick 坐标不变即触发，带防刷标记
+- `LOOK_SAME_DIR_5S`（持续看向一个方向五秒）— 连续 100 tick yaw 不变即触发，带防刷标记
+
+### 3. 新增环境状态类词条（2 种）
+- `ENCLOSED_1X2`（自闭）— 检查玩家是否被实心方块包围在 1×2 空间内（六面检测：脚底+头顶+脚部四水平+头部四水平方向均为实心方块）
+- `SUBMERGED`（沉入水中）— 检测玩家眼部位置是否为水方块
+
+### 4. 新增挖掘细分词条（3 种）
+- `MINE_ANDESITE`（挖掘安山岩）、`MINE_DIORITE`（挖掘闪长岩）、`MINE_DEEPSLATE`（挖掘深板岩）
+- 与已有的矿石细分共用 `onBlockBreak` 事件，在区块破坏回调中按方块 ID 区分
+
+### 5. 新增站立方块类词条 + 浮空（7 种）
+- `STAND_ON_GRASS` / `STAND_ON_LEAVES` / `STAND_ON_STONE` / `STAND_ON_DEEPSLATE` / `STAND_ON_ANDESITE` / `STAND_ON_DIORITE` — tick 轮询中检测脚底方块 ID
+- `FLOATING`（浮空）— 脚底无任何方块时触发
+
+### 6. 新增死亡/复活类词条（5 种）
+- `DEATH`（死亡）— 注册 `ServerLivingEntityEvents.AFTER_DEATH`，玩家死亡时触发并记录死亡时刻
+- `RESPAWN`（复活）— 注册 `ServerPlayerEvents.AFTER_RESPAWN`，玩家复活时触发并清除死亡计时
+- `NOT_RESPAWN_3S` / `NOT_RESPAWN_5S` / `NOT_RESPAWN_10S`（三/五/十秒不复活）— tick 中累计死亡时长，达到对应阈值时各触发一次
+
+### 7. 新增背包物品类词条（13 种）
+- **TriggerType.java** — 新增 `PICKUP_DIAMOND`、`HAS_COAL`、`HAS_IRON_INGOT`、`HAS_COPPER_INGOT`、`HAS_CRAFTING_TABLE`、`HAS_FURNACE`、`HAS_AXE`、`HAS_SWORD`、`HAS_STONE_PICKAXE`、`HAS_WOODEN_PICKAXE`、`HAS_IRON_PICKAXE`、`HAS_ROTTEN_FLESH`、`HAS_DIAMOND`、`HAS_DIRT`（共 13 种）
+- **WordPool.java** — 新增 13 个对应词条
+- **WordTriggerDetector.java** — 添加 `playerHasItem()` / `playerHasItemEndingWith()` 辅助方法，斧头和剑使用后缀匹配（`_axe` / `_sword`）
+- **PlayerInventoryMixin.java** — 新增钻石拾取细分检测
+
+### 8. 「自闭」判定修复
+- **问题**：头顶无方块时仍然误触发
+- **第一次修复**：增加 `aboveHeadPos = headPos.up()` 头顶方块检查
+- **第二次修复**：用户反馈脚下无方块也会误触发，补充 `belowFeetPos = feetPos.down()` 脚底方块检查
+- 最终实现完整的 1×2 六面封闭检测
+
+### 9. 死亡/复活事件注册补回
+- **问题**：死亡、复活、N 秒不复活共 5 个词条完全无法触发
+- **根因**：前序修改中 `register()` 漏掉了 `AFTER_DEATH` 和 `AFTER_RESPAWN` 两个事件注册
+- **修复**：补回两个事件监听器，死亡时记录 `deathTick` + 重置不复活标记，复活时清除死亡计时并触发 `RESPAWN`
+
+### 10. 背包物品检测从「边缘触发」改为「存在性触发」
+- **问题**：边缘触发模式下"背包里有XX"只在物品数量 0→1 时触发，已持有物品时永不触发；跨局时 `wasHas*` Map 残留上局状态导致本局不触发
+- **修复**：
+  - `checkInventoryItem()` 改为直接存在性触发：只要有对应物品就调用 `onPlayerTriggered`（反刷依赖 GameManager 自带的 1.5s 冷却）
+  - 斧头和剑检测同样改为直接存在性触发，移除边缘判断
+  - 新增 `clearAllState()` 静态方法，在 `GameManager.startGame()` 中调用，清理全部 40+ 个状态 Map
+
+### 11. 类型修正
+- `server.getTicks()` 返回 `int`，`deathTick` Map 为 `Long` 类型，添加 `(long)` 强转
+
+### 当前词条总数：71 种（TriggerType 71 个枚举值）
+
+---
+
 ## 2026-06-01
 
 ### 1. 新增合成类触发词条（10 种）
