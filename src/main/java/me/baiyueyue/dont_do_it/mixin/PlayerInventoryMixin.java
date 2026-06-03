@@ -33,27 +33,18 @@ public class PlayerInventoryMixin {
     // ---- insertStack(ItemStack) -> boolean ----
     @Inject(method = "insertStack", at = @At("HEAD"), require = 0)
     private void onInsertStack_head(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
-        LOGGER.info("[Dont_do_it] DIAG: insertStack(ItemStack) 被调用, item={}, count={}",
-                stack.isEmpty() ? "EMPTY" : stack.getItem().getRegistryEntry().registryKey().getValue().getPath(),
-                stack.getCount());
         checkPickupWood(stack);
     }
 
     // ---- offerOrDrop(ItemStack) ----
     @Inject(method = "offerOrDrop", at = @At("HEAD"), require = 0)
     private void onOfferOrDrop(ItemStack stack, CallbackInfo ci) {
-        LOGGER.info("[Dont_do_it] DIAG: offerOrDrop(ItemStack) 被调用, item={}, count={}",
-                stack.isEmpty() ? "EMPTY" : stack.getItem().getRegistryEntry().registryKey().getValue().getPath(),
-                stack.getCount());
         checkPickupWood(stack);
     }
 
     // ---- addStack(ItemStack) -> int ----
     @Inject(method = "addStack", at = @At("HEAD"), require = 0)
     private void onAddStack(ItemStack stack, CallbackInfoReturnable<Integer> cir) {
-        LOGGER.info("[Dont_do_it] DIAG: addStack(ItemStack) 被调用, item={}, count={}",
-                stack.isEmpty() ? "EMPTY" : stack.getItem().getRegistryEntry().registryKey().getValue().getPath(),
-                stack.getCount());
         checkPickupWood(stack);
     }
 

@@ -97,7 +97,158 @@ public enum TriggerType {
     HAS_IRON_PICKAXE("背包里有铁镐"),
     HAS_ROTTEN_FLESH("背包里有腐肉"),
     HAS_DIAMOND("背包里有钻石"),
-    HAS_DIRT("背包里有泥土");
+    HAS_DIRT("背包里有泥土"),
+
+    // ---- 新增：特殊饮食 ----
+    EAT_ROTTEN_FLESH("吃腐肉"),
+
+    // ---- 新增：即时效果词条（分配时立即生效，不需行为匹配）----
+    INSTANT_LOSE_HEART("直接扣一颗心"),
+    INSTANT_GAIN_HEART("直接回一颗心"),
+
+    // ---- 新增：伤害细分 ----
+    TAKE_FIRE_DAMAGE("受到火焰伤害"),
+
+    // ---- 新增：饥饿度 ----
+    HUNGER_BELOW_18("饱食度低于18"),
+    HUNGER_ABOVE_18("饱食度高于18"),
+
+    // ---- 新增：Y 高度 ----
+    Y_ABOVE_70("玩家高度Y＞70"),
+    Y_BELOW_70("玩家高度Y＜70"),
+
+    // ---- 新增：攻击/造成伤害 ----
+    ATTACK_PLAYER("攻击玩家"),
+    DEAL_DAMAGE("造成伤害"),
+
+    // ---- 新增：持续行为类 ----
+    SPRINT_30S("连续奔跑30s"),
+    SNEAK_5S("连续潜行5s"),
+    JUMP_10_TIMES("跳跃10次"),
+
+    // ---- 新增：距离相关 ----
+    FAR_FROM_ALL_15M("距离所有玩家15米"),
+    TOO_CLOSE_TO_PLAYER("和玩家贴贴"),
+
+    // ---- 新增：挖掘/站立方块 ----
+    MINE_GRANITE("挖掘花岗岩"),
+    STAND_ON_GRANITE("站在花岗岩"),
+    MINE_TUFF("挖掘凝灰岩"),
+    STAND_ON_TUFF("站在凝灰岩上"),
+
+    // ---- 新增：经验/等级 ----
+    GAIN_EXPERIENCE("获得经验"),
+    LEVEL_UP("升级"),
+
+    // ---- 新增：穿戴装备 ----
+    WEAR_ARMOR("穿装备"),
+
+    // ---- 新增：手持物品 ----
+    HOLD_CRAFTING_TABLE("手持工作台"),
+    HOLD_FURNACE("手持熔炉"),
+    HOLD_WOODEN_PICKAXE("手持木镐"),
+    HOLD_IRON_PICKAXE("手持铁镐"),
+    HOLD_STONE_PICKAXE("手持石镐"),
+    HOLD_WOODEN_AXE("手持木斧"),
+    HOLD_STONE_AXE("手持石斧"),
+    HOLD_IRON_AXE("手持铁斧"),
+
+    // ---- 新增：快捷栏选择 ----
+    SELECT_SLOT_FIRST("选中快捷栏第一位"),
+    SELECT_SLOT_LAST("选中快捷栏最后一位"),
+
+    // ---- 新增：下落高度 ----
+    FALL_5_BLOCKS("下降5格高度"),
+
+    // ---- 新增：空手攻击 ----
+    EMPTY_HAND_ATTACK("空手打人"),
+
+    // ---- 新增：背包物品 —— 磨制石材 ----
+    HAS_POLISHED_ANDESITE("背包里有磨制安山岩"),
+    HAS_POLISHED_GRANITE("背包里有磨制花岗岩"),
+    HAS_POLISHED_DIORITE("背包里有磨制闪长岩"),
+    HAS_TUFF("背包里有凝灰岩"),
+    HAS_STONE("背包里有石头"),
+    HAS_SMOOTH_STONE("背包里有平滑石头"),
+    HAS_LEAVES("背包里有树叶"),
+
+    // ---- 新增：背包里没有某类物品 ----
+    NO_IRON_TOOLS_OR_ARMOR("背包里没有铁质工具或防具"),
+    NO_DIAMOND_TOOLS_OR_ARMOR("背包里没有钻石工具或防具"),
+
+    // ---- 新增：背包物品 —— 杂项 ----
+    HAS_BONE("背包里有骨头"),
+    HAS_STRING("背包里有线"),
+    HAS_ENDER_PEARL("背包里有末影珍珠"),
+    HAS_LEATHER("背包里有皮革"),
+    HAS_WOOL("背包里有羊毛"),
+
+    // ---- 新增：副手/容器/挖掘/击杀/计数/倒计时/放置 ----
+    HOLD_SHIELD_OFFHAND("副手持盾"),
+    OPEN_CHEST("打开箱子"),
+    OPEN_FURNACE("与熔炉交互"),
+    OPEN_CRAFTING_TABLE("与工作台交互"),
+    MINE_CRAFTING_TABLE("挖掘工作台"),
+    MINE_FURNACE("挖掘熔炉"),
+    KILL_IRON_GOLEM("杀死铁傀儡"),
+    VILLAGER_TRADE("村民交易"),
+    PLACE_30_BLOCKS("放置30个方块"),
+    DROP_30_ITEMS("丢弃30个方块"),
+    NO_JUMP_30S("30秒不跳"),
+    NO_SNEAK_30S("30秒不潜行"),
+    NO_SPRINT_30S("30秒不疾跑"),
+    NO_JUMP_60S("60秒不跳"),
+    NO_SNEAK_60S("60秒不潜行"),
+    NO_SPRINT_60S("60秒不疾跑"),
+    PLACE_DIRT("放置泥土"),
+    PLACE_COBBLESTONE("放置圆石"),
+    PLACE_COBBLED_DEEPSLATE("放置深板岩圆石"),
+    PLACE_ANDESITE("放置安山岩"),
+    PLACE_GRANITE("放置花岗岩"),
+    PLACE_DIORITE("放置闪长岩"),
+    PLACE_TUFF("放置凝灰岩"),
+    PLACE_CRAFTING_TABLE("放置工作台"),
+    PLACE_FURNACE("放置熔炉"),
+    PLACE_CHEST("放置箱子"),
+
+    // ---- 新增：丢弃特定物品 ----
+    DROP_DIRT("丢弃泥土"),
+    DROP_COBBLESTONE("丢弃圆石"),
+    DROP_COBBLED_DEEPSLATE("丢弃深板岩圆石"),
+    DROP_ANDESITE("丢弃安山岩"),
+    DROP_GRANITE("丢弃花岗岩"),
+    DROP_DIORITE("丢弃闪长岩"),
+    DROP_TUFF("丢弃凝灰岩"),
+    DROP_WOODEN_PICKAXE("丢弃木镐"),
+
+    // ---- 新增：死亡细分 ----
+    DEATH_BY_FALL("摔死"),
+    DEATH_BY_LAVA("岩浆里游泳"),
+    DEATH_BY_SUFFOCATION("窒息"),
+    DEATH_BY_DROWN("溺死"),
+    DEATH_BY_EXPLOSION("炸死"),
+
+    // ---- 新增：伤害细分 ----
+    TAKE_PROJECTILE_DAMAGE("弹射物伤害"),
+    TAKE_5_DAMAGE("一次性受到5滴血伤害"),
+
+    // ---- 新增：头顶方块 ----
+    BLOCK_ABOVE_HEAD("头顶有方块遮挡"),
+    NO_BLOCK_ABOVE_HEAD("头顶无方块遮挡"),
+
+    // ---- 新增：背包物品（桶）----
+    HAS_BUCKET("背包里有桶"),
+    HAS_WATER_BUCKET("背包里有水桶"),
+    HAS_LAVA_BUCKET("背包里有岩浆桶"),
+
+    // ---- 新增：桶操作 ----
+    FILL_BUCKET_WATER("用桶装水"),
+    EMPTY_BUCKET_WATER("用桶倒水"),
+    FILL_BUCKET_LAVA("用桶装岩浆"),
+    EMPTY_BUCKET_LAVA("用桶倒岩浆"),
+
+    // ---- 新增：站在基岩上 ----
+    STAND_ON_BEDROCK("站在基岩上");
 
     private final String displayName;
 

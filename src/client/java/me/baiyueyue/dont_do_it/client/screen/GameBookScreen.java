@@ -16,6 +16,7 @@ public class GameBookScreen extends Screen {
 
     private int wordTimer = 60; // 默认值
     private int specialEventTimer = 180; // 默认值
+    private int hearts = 15; // 默认血量
 
     public GameBookScreen(Text title) {
         super(title);
@@ -25,6 +26,13 @@ public class GameBookScreen extends Screen {
         super(title);
         this.wordTimer = wordTimer;
         this.specialEventTimer = specialEventTimer;
+    }
+
+    public GameBookScreen(Text title, int wordTimer, int specialEventTimer, int hearts) {
+        super(title);
+        this.wordTimer = wordTimer;
+        this.specialEventTimer = specialEventTimer;
+        this.hearts = hearts;
     }
 
     @Override
@@ -40,32 +48,41 @@ public class GameBookScreen extends Screen {
                     ClientPlayNetworking.send(new GamePackets.RequestStartGamePayload());
                     this.close();
                 })
-                .dimensions(centerX - 100, centerY - 30, 200, 20)
+                .dimensions(centerX - 100, centerY - 40, 200, 20)
                 .build());
 
         // 词条更换倒计时按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("§e⏱ 词条更换倒计时"),
                 btn -> {
-                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, "WORD_TIMER");
+                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, hearts, "WORD_TIMER");
                 })
-                .dimensions(centerX - 100, centerY, 200, 20)
+                .dimensions(centerX - 100, centerY - 15, 200, 20)
                 .build());
 
         // 特殊事件触发倒计时按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("§6⚡ 特殊事件触发倒计时"),
                 btn -> {
-                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, "SPECIAL_EVENT_TIMER");
+                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, hearts, "SPECIAL_EVENT_TIMER");
                 })
-                .dimensions(centerX - 100, centerY + 25, 200, 20)
+                .dimensions(centerX - 100, centerY + 10, 200, 20)
+                .build());
+
+        // 血量上限按钮
+        this.addDrawableChild(ButtonWidget.builder(
+                Text.literal("§c❤ 血量上限"),
+                btn -> {
+                    GameBookItem.requestOpenSettings(wordTimer, specialEventTimer, hearts, "HEARTS");
+                })
+                .dimensions(centerX - 100, centerY + 35, 200, 20)
                 .build());
 
         // 关闭按钮
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("§7✕ 关闭"),
                 btn -> this.close())
-                .dimensions(centerX - 100, centerY + 55, 200, 20)
+                .dimensions(centerX - 100, centerY + 65, 200, 20)
                 .build());
     }
 

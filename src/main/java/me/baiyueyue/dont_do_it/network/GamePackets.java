@@ -48,7 +48,7 @@ public class GamePackets {
 
     public record SyncOnePlayerPayload(UUID playerId, String teamColor, String wordText,
                                         int hearts, boolean eliminated, int countdownSeconds,
-                                        int totalTimerSeconds) implements CustomPayload {
+                                        int totalTimerSeconds, int maxHearts) implements CustomPayload {
         public static final Id<SyncOnePlayerPayload> ID = new Id<>(SYNC_ONE_PLAYER_ID);
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
@@ -96,7 +96,7 @@ public class GamePackets {
 
     // ==================== C2S: 更新设置（含特殊事件） ====================
 
-    public record UpdateSettingsFullPayload(int wordTimerSeconds, int specialEventTimerSeconds) implements CustomPayload {
+    public record UpdateSettingsFullPayload(int wordTimerSeconds, int specialEventTimerSeconds, int defaultHearts) implements CustomPayload {
         public static final Id<UpdateSettingsFullPayload> ID = new Id<>(Identifier.of("dont_do_it", "update_settings_full"));
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
@@ -148,10 +148,11 @@ public class GamePackets {
                             buf.writeBoolean(payload.eliminated());
                             buf.writeInt(payload.countdownSeconds());
                             buf.writeInt(payload.totalTimerSeconds());
+                            buf.writeInt(payload.maxHearts());
                         },
                         buf -> new SyncOnePlayerPayload(
                                 buf.readUuid(), buf.readString(), buf.readString(),
-                                buf.readInt(), buf.readBoolean(), buf.readInt(), buf.readInt())));
+                                buf.readInt(), buf.readBoolean(), buf.readInt(), buf.readInt(), buf.readInt())));
 
         PayloadTypeRegistry.playS2C().register(NotificationPayload.ID,
                 PacketCodec.of(
@@ -185,8 +186,8 @@ public class GamePackets {
 
         PayloadTypeRegistry.playC2S().register(UpdateSettingsFullPayload.ID,
                 PacketCodec.of(
-                        (payload, buf) -> { buf.writeInt(payload.wordTimerSeconds()); buf.writeInt(payload.specialEventTimerSeconds()); },
-                        buf -> new UpdateSettingsFullPayload(buf.readInt(), buf.readInt())));
+                        (payload, buf) -> { buf.writeInt(payload.wordTimerSeconds()); buf.writeInt(payload.specialEventTimerSeconds()); buf.writeInt(payload.defaultHearts()); },
+                        buf -> new UpdateSettingsFullPayload(buf.readInt(), buf.readInt(), buf.readInt())));
 
         // ---- S2C: 特殊事件 BossBar ----
         PayloadTypeRegistry.playS2C().register(SpecialEventBossBarPayload.ID,

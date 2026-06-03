@@ -1,6 +1,5 @@
 package me.baiyueyue.dont_do_it.client.game;
 
-import me.baiyueyue.dont_do_it.game.GameSettings;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ClientBossBar;
 import net.minecraft.entity.boss.BossBar;
@@ -46,20 +45,21 @@ public class BossBarManager {
      * 更新自己的血量 BossBar
      * @param hearts     剩余生命值
      * @param eliminated 是否已淘汰
+     * @param maxHearts  血量上限
      */
-    public static void updateHealthBar(int hearts, boolean eliminated) {
+    public static void updateHealthBar(int hearts, boolean eliminated, int maxHearts) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.inGameHud == null) return;
 
         float percent = eliminated
                 ? 0f
-                : Math.max(0f, Math.min(1f, (float) hearts / GameSettings.DEFAULT_HEARTS));
+                : Math.max(0f, Math.min(1f, (float) hearts / maxHearts));
 
         String displayStr;
         if (eliminated) {
             displayStr = "§c§m❤ 已淘汰";
         } else {
-            displayStr = "§c❤ 剩余生命值: " + hearts + "/" + GameSettings.DEFAULT_HEARTS;
+            displayStr = "§c❤ 剩余生命值: " + hearts + "/" + maxHearts;
         }
         Text displayText = Text.literal(displayStr);
 

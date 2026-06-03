@@ -16,7 +16,7 @@ public class GameBookItem extends Item {
     }
     @FunctionalInterface
     public interface SettingsOpener {
-        void open(int wordTimer, int specialEventTimer, String mode);
+        void open(int wordTimer, int specialEventTimer, int hearts, String mode);
     }
 
     private static ScreenOpener screenOpener;
@@ -38,9 +38,9 @@ public class GameBookItem extends Item {
     }
 
     /** 由设置界面调用，通知客户端打开设置 */
-    public static void requestOpenSettings(int wordTimer, int specialEventTimer, String mode) {
+    public static void requestOpenSettings(int wordTimer, int specialEventTimer, int hearts, String mode) {
         if (settingsOpener != null) {
-            settingsOpener.open(wordTimer, specialEventTimer, mode);
+            settingsOpener.open(wordTimer, specialEventTimer, hearts, mode);
         }
     }
 }

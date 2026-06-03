@@ -2,3 +2,6 @@ accessWidener v2 named
 
 # 开放 BossBarHud.bossBars 字段，用于自定义 BossBar 管理
 accessible field net/minecraft/client/gui/hud/BossBarHud bossBars Ljava/util/Map;
+
+# 开放 PlayerInventory 字段，用于词条检测
+accessible field net/minecraft/entity/player/PlayerInventory selectedSlot I

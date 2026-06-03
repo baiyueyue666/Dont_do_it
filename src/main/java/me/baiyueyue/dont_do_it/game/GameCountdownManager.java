@@ -14,6 +14,7 @@ public class GameCountdownManager {
         ServerTickEvents.END_SERVER_TICK.register(GameCountdownManager::onServerTick);
     }
 
+    /** 每秒执行一次：词条倒计时 + 特殊事件计时 */
     private static void onServerTick(MinecraftServer server) {
         GameManager gm = GameManager.getInstance();
         if (!gm.isRunning()) return;

@@ -67,9 +67,13 @@ public class Dont_do_it implements ModInitializer {
                     var settings = GameManager.getInstance().getSettings();
                     settings.setWordChangeTimerSeconds(payload.wordTimerSeconds());
                     settings.setSpecialEventTimerSeconds(payload.specialEventTimerSeconds());
+                    settings.setDefaultHearts(payload.defaultHearts());
+                    String specialEventMsg = payload.specialEventTimerSeconds() == 0
+                            ? "§c关闭"
+                            : "§6" + payload.specialEventTimerSeconds() + "秒";
                     context.player().sendMessage(
-                            Text.literal("§a✔ 词条更换: §e%d秒 §7| §a特殊事件间隔: §6%d秒"
-                                    .formatted(payload.wordTimerSeconds(), payload.specialEventTimerSeconds())), true);
+                            Text.literal("§a✔ 词条更换: §e%d秒 §7| §a特殊事件: %s §7| §a血量上限: §c%d"
+                                    .formatted(payload.wordTimerSeconds(), specialEventMsg, payload.defaultHearts())), true);
                 });
 
         // 玩家加入时给予书本（仅在 WAITING 状态下发放）

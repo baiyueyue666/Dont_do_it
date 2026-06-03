@@ -28,6 +28,7 @@ public class GameHudRenderer {
     public static boolean myEliminated = false;
     public static int myCountdownSeconds = 60;
     public static int totalTimerSeconds = 60;
+    public static int myMaxHearts = 15;
     public static String myTeamColor = "RED";
 
     /** 中央通知列表 */
@@ -54,7 +55,7 @@ public class GameHudRenderer {
                 myCountdownSeconds--;
             }
             // 更新自己的 BossBar
-            BossBarManager.updateHealthBar(myHearts, myEliminated);
+            BossBarManager.updateHealthBar(myHearts, myEliminated, myMaxHearts);
             BossBarManager.updateCountdownBar(myCountdownSeconds, totalTimerSeconds);
         });
     }

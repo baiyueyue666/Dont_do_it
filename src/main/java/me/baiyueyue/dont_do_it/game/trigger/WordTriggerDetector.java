@@ -1,6 +1,7 @@
 package me.baiyueyue.dont_do_it.game.trigger;
 
 import me.baiyueyue.dont_do_it.game.GameManager;
+import me.baiyueyue.dont_do_it.game.PlayerWordData;
 import me.baiyueyue.dont_do_it.game.TriggerType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -8,10 +9,15 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.*;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.component.DataComponentTypes;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.damage.DamageTypes;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.passive.IronGolemEntity;
+import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 
 import java.util.*;
@@ -86,6 +92,62 @@ public class WordTriggerDetector {
     private static final Map<UUID, Boolean> wasHasDiamond = new HashMap<>();
     private static final Map<UUID, Boolean> wasHasDirt = new HashMap<>();
 
+    // ---- 新增：饥饿度 / 高度 / 站立方块 边缘检测 ----
+    private static final Map<UUID, Boolean> wasHungerBelow18 = new HashMap<>();
+    private static final Map<UUID, Boolean> wasHungerAbove18 = new HashMap<>();
+    private static final Map<UUID, Boolean> wasYAbove70 = new HashMap<>();
+    private static final Map<UUID, Boolean> wasYBelow70 = new HashMap<>();
+    private static final Map<UUID, Boolean> wasOnGranite = new HashMap<>();
+    private static final Map<UUID, Boolean> wasOnTuff = new HashMap<>();
+
+    // ---- 新增：距离相关 边缘检测 ----
+    private static final Map<UUID, Boolean> wasFarFromAll15m = new HashMap<>();
+    private static final Map<UUID, Boolean> wasTooCloseToPlayer = new HashMap<>();
+
+    // ---- 新增：持续行为计时 / 计数 ----
+    private static final Map<UUID, Long> sprintStartTick = new HashMap<>();  // serverTick when sprint started
+    private static final Map<UUID, Long> sneakStartTick = new HashMap<>();    // serverTick when sneak started
+    private static final Map<UUID, Integer> jumpCount = new HashMap<>();
+    private static final Map<UUID, Boolean> sprint30sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> sneak5sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> jump10Triggered = new HashMap<>();
+
+    // ---- 新增：经验/等级跟踪 ----
+    private static final Map<UUID, Integer> prevExperienceLevel = new HashMap<>();
+    private static final Map<UUID, Float> prevExperienceProgress = new HashMap<>();
+
+    // ---- 新增：跳跃检测辅助（跟踪上一 tick 是否在地面）----
+    private static final Map<UUID, Boolean> wasOnGround = new HashMap<>();
+
+    // ---- 新增：吃腐肉检测辅助 ----
+    private static final Map<UUID, String> lastEatenFoodId = new HashMap<>();
+
+    // ---- 新增：下落高度检测辅助 ----
+    private static final Map<UUID, Double> fallStartY = new HashMap<>();  // 离开地面时的 Y 坐标
+    private static final Map<UUID, Boolean> fallTriggered = new HashMap<>();  // 防止同一次下落重复触发
+
+    // ---- 新增：放置/丢弃计数 ----
+    private static final Map<UUID, Integer> placeCount = new HashMap<>();
+    private static final Map<UUID, Boolean> place30Triggered = new HashMap<>();
+    private static final Map<UUID, Integer> dropCount = new HashMap<>();
+    private static final Map<UUID, Boolean> drop30Triggered = new HashMap<>();
+
+    // ---- 新增：不跳/不潜行/不疾跑倒计时 ----
+    private static final Map<UUID, Long> lastJumpTick = new HashMap<>();
+    private static final Map<UUID, Long> lastSneakActionTick = new HashMap<>();
+    private static final Map<UUID, Long> lastSprintActionTick = new HashMap<>();
+    private static final Map<UUID, Boolean> noJump30sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> noSneak30sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> noSprint30sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> noJump60sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> noSneak60sTriggered = new HashMap<>();
+    private static final Map<UUID, Boolean> noSprint60sTriggered = new HashMap<>();
+
+    // ---- 新增：头顶方块 / 站在基岩 边缘检测 ----
+    private static final Map<UUID, Boolean> wasBlockAboveHead = new HashMap<>();
+    private static final Map<UUID, Boolean> wasNoBlockAboveHead = new HashMap<>();
+    private static final Map<UUID, Boolean> wasOnBedrock = new HashMap<>();
+
     public static void register() {
 
         // ---- 攻击生物（除玩家外） ----
@@ -97,12 +159,33 @@ public class WordTriggerDetector {
             return ActionResult.PASS;
         });
 
+        // ---- 攻击玩家 ----
+        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (player instanceof ServerPlayerEntity sp && entity instanceof ServerPlayerEntity
+                    && world instanceof ServerWorld sw) {
+                GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.ATTACK_PLAYER);
+                // 空手打人
+                if (sp.getMainHandStack().isEmpty()) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.EMPTY_HAND_ATTACK);
+                }
+            }
+            return ActionResult.PASS;
+        });
+
         // ---- 打怪（仅对敌对生物造成伤害后触发） ----
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
             if (amount > 0 && entity instanceof HostileEntity
                     && source.getAttacker() instanceof ServerPlayerEntity sp
                     && sp.getEntityWorld() instanceof ServerWorld sw) {
                 GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.ATTACK_HOSTILE);
+            }
+        });
+
+        // ---- 造成伤害（攻击者对任意实体造成伤害） ----
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
+            if (amount > 0 && source.getAttacker() instanceof ServerPlayerEntity sp
+                    && sp.getEntityWorld() instanceof ServerWorld sw) {
+                GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEAL_DAMAGE);
             }
         });
 
@@ -119,6 +202,17 @@ public class WordTriggerDetector {
                 TriggerType specificOre = getSpecificOreType(blockId);
                 if (specificOre != null) {
                     GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, specificOre);
+                }
+                // 钻石祝福：挖钻石矿回血
+                if (blockId.contains("diamond_ore") && GameManager.getInstance().isDiamondBlessingActive()) {
+                    PlayerWordData data = GameManager.getInstance().getPlayerData(sp.getUuid());
+                    if (data != null && !data.isEliminated()) {
+                        int maxHearts = GameManager.getInstance().getSettings().getDefaultHearts();
+                        if (data.getHearts() < maxHearts) {
+                            data.addHeart();
+                            sp.sendMessage(Text.literal("§b💎 钻石祝福！回复一颗心 ❤×§c" + data.getHearts()), true);
+                        }
+                    }
                 }
                 // 挖掘木头
                 if (isWoodBlock(blockId)) {
@@ -140,15 +234,81 @@ public class WordTriggerDetector {
                 if (isDeepslateBlock(blockId)) {
                     GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_DEEPSLATE);
                 }
+                // 挖掘花岗岩
+                if (blockId.equals("granite")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_GRANITE);
+                }
+                // 挖掘凝灰岩
+                if (blockId.equals("tuff")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_TUFF);
+                }
+                // 挖掘工作台
+                if (blockId.equals("crafting_table")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_CRAFTING_TABLE);
+                }
+                // 挖掘熔炉
+                if (blockId.equals("furnace")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.MINE_FURNACE);
+                }
             }
         });
 
-        // ---- 放置方块 ----
+        // ---- 放置方块 + 打开容器 + 特定方块放置 ----
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (player instanceof ServerPlayerEntity sp && world instanceof ServerWorld sw) {
                 var stack = sp.getStackInHand(hand);
-                if (stack.getItem() instanceof net.minecraft.item.BlockItem) {
+                String blockId = world.getBlockState(hitResult.getBlockPos()).getBlock()
+                        .getRegistryEntry().registryKey().getValue().getPath();
+
+                // 优先检测容器打开（无论手持何物，右击交互方块都应触发）
+                TriggerType openType = getOpenContainerType(blockId);
+                if (openType != null) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, openType);
+                }
+
+                if (stack.getItem() instanceof net.minecraft.item.BlockItem bi) {
                     GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.BLOCK_PLACE);
+                    // 放置30个方块计数
+                    UUID id = sp.getUuid();
+                    int cnt = placeCount.getOrDefault(id, 0) + 1;
+                    placeCount.put(id, cnt);
+                    if (cnt >= 30 && !place30Triggered.getOrDefault(id, false)) {
+                        place30Triggered.put(id, true);
+                        GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.PLACE_30_BLOCKS);
+                    }
+                    // 放置特定方块
+                    String itemId = bi.getRegistryEntry().registryKey().getValue().getPath();
+                    TriggerType placeType = getPlaceBlockType(itemId);
+                    if (placeType != null) {
+                        GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, placeType);
+                    }
+                }
+            }
+            return ActionResult.PASS;
+        });
+
+        // ---- 桶倒液（水桶/岩浆桶使用）+ 桶装液（空桶射线检测流体） ----
+        UseItemCallback.EVENT.register((player, world, hand) -> {
+            if (player instanceof ServerPlayerEntity sp && world instanceof ServerWorld sw) {
+                var stack = sp.getStackInHand(hand);
+                String itemId = stack.getItem().getRegistryEntry().registryKey().getValue().getPath();
+                if (itemId.equals("water_bucket")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.EMPTY_BUCKET_WATER);
+                } else if (itemId.equals("lava_bucket")) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.EMPTY_BUCKET_LAVA);
+                } else if (itemId.equals("bucket")) {
+                    // 空桶：射线检测（含流体），判断目标是否为水或岩浆
+                    var hit = player.raycast(5.0, 0.0F, true);
+                    if (hit.getType() == net.minecraft.util.hit.HitResult.Type.BLOCK) {
+                        var blockHit = (net.minecraft.util.hit.BlockHitResult) hit;
+                        String targetBlockId = world.getBlockState(blockHit.getBlockPos()).getBlock()
+                                .getRegistryEntry().registryKey().getValue().getPath();
+                        if (targetBlockId.equals("water")) {
+                            GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.FILL_BUCKET_WATER);
+                        } else if (targetBlockId.equals("lava")) {
+                            GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.FILL_BUCKET_LAVA);
+                        }
+                    }
                 }
             }
             return ActionResult.PASS;
@@ -170,6 +330,31 @@ public class WordTriggerDetector {
             }
         });
 
+        // ---- 受到火焰伤害 ----
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
+            if (entity instanceof ServerPlayerEntity sp && amount > 0 && isFireDamage(source)) {
+                GameManager.getInstance().onPlayerTriggered(
+                        ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.TAKE_FIRE_DAMAGE);
+            }
+        });
+
+        // ---- 弹射物伤害 ----
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
+            if (entity instanceof ServerPlayerEntity sp && amount > 0
+                    && source.isIn(DamageTypeTags.IS_PROJECTILE)) {
+                GameManager.getInstance().onPlayerTriggered(
+                        ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.TAKE_PROJECTILE_DAMAGE);
+            }
+        });
+
+        // ---- 一次性受到5滴血伤害 ----
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount, originalHealth, newHealth) -> {
+            if (entity instanceof ServerPlayerEntity sp && amount >= 5) {
+                GameManager.getInstance().onPlayerTriggered(
+                        ((ServerWorld) sp.getEntityWorld()).getServer(), sp, TriggerType.TAKE_5_DAMAGE);
+            }
+        });
+
         // ---- 吃东西（吃完后触发） ----
         // 通过 tick 轮询检测进食完成（见 onServerTick）
 
@@ -183,6 +368,29 @@ public class WordTriggerDetector {
                 notRespawn3sTriggered.remove(id);
                 notRespawn5sTriggered.remove(id);
                 notRespawn10sTriggered.remove(id);
+
+                // ---- 死亡细分检测 ----
+                if (source.isOf(DamageTypes.FALL)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEATH_BY_FALL);
+                }
+                if (source.isOf(DamageTypes.LAVA)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEATH_BY_LAVA);
+                }
+                if (source.isOf(DamageTypes.IN_WALL)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEATH_BY_SUFFOCATION);
+                }
+                if (source.isOf(DamageTypes.DROWN)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEATH_BY_DROWN);
+                }
+                if (source.isOf(DamageTypes.EXPLOSION) || source.isOf(DamageTypes.PLAYER_EXPLOSION)) {
+                    GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.DEATH_BY_EXPLOSION);
+                }
+            }
+            // 杀死铁傀儡
+            if (entity instanceof IronGolemEntity
+                    && source.getAttacker() instanceof ServerPlayerEntity sp
+                    && sp.getEntityWorld() instanceof ServerWorld sw) {
+                GameManager.getInstance().onPlayerTriggered(sw.getServer(), sp, TriggerType.KILL_IRON_GOLEM);
             }
         });
 
@@ -223,9 +431,19 @@ public class WordTriggerDetector {
             // 进食检测：从正在吃→不再吃=吃完
             boolean usingFood = player.isUsingItem()
                     && player.getActiveItem().contains(DataComponentTypes.FOOD);
+            // 记录正在吃的食物 ID，供吃完后判断类型
+            if (usingFood) {
+                lastEatenFoodId.put(id, player.getActiveItem().getItem()
+                        .getRegistryEntry().registryKey().getValue().getPath());
+            }
             Boolean prevUsingFood = wasUsingFood.put(id, usingFood);
             if (!usingFood && prevUsingFood != null && prevUsingFood) {
                 GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.EAT);
+                // 检查是否吃了腐肉
+                String foodId = lastEatenFoodId.get(id);
+                if ("rotten_flesh".equals(foodId)) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.EAT_ROTTEN_FLESH);
+                }
             }
 
             // ---- 低头/抬头 边缘检测 ----
@@ -374,6 +592,18 @@ public class WordTriggerDetector {
                 GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.FLOATING);
             }
 
+            // ---- 头顶有方块遮挡 / 头顶无方块遮挡 ----
+            // 向上扫描直到世界高度，检查头顶是否有任意非空气方块
+            boolean blockAboveHead = hasBlockAboveHead(player);
+            Boolean prevBlockAbove = wasBlockAboveHead.put(id, blockAboveHead);
+            if (blockAboveHead && (prevBlockAbove == null || !prevBlockAbove)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.BLOCK_ABOVE_HEAD);
+            }
+            Boolean prevNoBlockAbove = wasNoBlockAboveHead.put(id, !blockAboveHead);
+            if (!blockAboveHead && (prevNoBlockAbove == null || !prevNoBlockAbove)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_BLOCK_ABOVE_HEAD);
+            }
+
             // ---- 死亡后 N 秒不复活 ----
             Long deathT = deathTick.get(id);
             if (deathT != null && player.isDead()) {
@@ -418,6 +648,277 @@ public class WordTriggerDetector {
             checkInventoryItem(server, player, id, "wooden_pickaxe", wasHasWoodenPickaxe, TriggerType.HAS_WOODEN_PICKAXE);
             // 铁镐
             checkInventoryItem(server, player, id, "iron_pickaxe", wasHasIronPickaxe, TriggerType.HAS_IRON_PICKAXE);
+
+            // ==================== 新增：饥饿度检测（存在性触发）====================
+
+            int hunger = player.getHungerManager().getFoodLevel();
+            if (hunger < 18) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HUNGER_BELOW_18);
+            }
+            if (hunger > 18) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HUNGER_ABOVE_18);
+            }
+
+            // ==================== 新增：Y 高度检测（存在性触发）====================
+
+            if (player.getY() > 70) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.Y_ABOVE_70);
+            }
+            if (player.getY() < 70) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.Y_BELOW_70);
+            }
+
+            // ==================== 新增：连续奔跑 30s / 潜行 5s ====================
+
+            long tick = server.getTicks();
+
+            if (sprinting) {
+                sprintStartTick.putIfAbsent(id, tick);
+                long sprintDuration = (tick - sprintStartTick.get(id)) / 20;
+                if (sprintDuration >= 30 && !sprint30sTriggered.getOrDefault(id, false)) {
+                    sprint30sTriggered.put(id, true);
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.SPRINT_30S);
+                }
+            } else {
+                sprintStartTick.remove(id);
+                sprint30sTriggered.remove(id);
+            }
+
+            if (sneaking) {
+                sneakStartTick.putIfAbsent(id, tick);
+                long sneakDuration = (tick - sneakStartTick.get(id)) / 20;
+                if (sneakDuration >= 5 && !sneak5sTriggered.getOrDefault(id, false)) {
+                    sneak5sTriggered.put(id, true);
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.SNEAK_5S);
+                }
+            } else {
+                sneakStartTick.remove(id);
+                sneak5sTriggered.remove(id);
+            }
+
+            // ==================== 新增：跳跃 10 次 ====================
+
+            boolean onGround = player.isOnGround();
+            Boolean prevGround = wasOnGround.put(id, onGround);
+            // 从地面→离地 = 一次跳跃（不依赖 velocity，服务端 velocity 可能不准确）
+            if (!onGround && prevGround != null && prevGround) {
+                int jumps = jumpCount.getOrDefault(id, 0) + 1;
+                jumpCount.put(id, jumps);
+                if (jumps >= 10 && !jump10Triggered.getOrDefault(id, false)) {
+                    jump10Triggered.put(id, true);
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.JUMP_10_TIMES);
+                }
+            }
+
+            // ==================== 新增：距离检测（存在性触发）====================
+
+            List<ServerPlayerEntity> allPlayers = server.getPlayerManager().getPlayerList();
+            double minDist = Double.MAX_VALUE;
+            for (ServerPlayerEntity other : allPlayers) {
+                if (other.getUuid().equals(id)) continue;
+                double dist = player.squaredDistanceTo(other);
+                if (dist < minDist) minDist = dist;
+            }
+
+            // 距离所有玩家 > 15 米（即最近玩家距离也 > 15）
+            if (minDist > 225) { // 15^2 = 225
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.FAR_FROM_ALL_15M);
+            }
+
+            // 和玩家贴贴（距离 < 2 米）
+            if (minDist < 4) { // 2^2 = 4
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.TOO_CLOSE_TO_PLAYER);
+            }
+
+            // ==================== 新增：站在花岗岩 / 凝灰岩上 ====================
+
+            boolean onGranite = belowBlockId.equals("granite");
+            Boolean prevGranite = wasOnGranite.put(id, onGranite);
+            if (onGranite && (prevGranite == null || !prevGranite)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.STAND_ON_GRANITE);
+            }
+
+            boolean onTuff = belowBlockId.equals("tuff");
+            Boolean prevTuff = wasOnTuff.put(id, onTuff);
+            if (onTuff && (prevTuff == null || !prevTuff)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.STAND_ON_TUFF);
+            }
+
+            // ---- 站在基岩上 ----
+            boolean onBedrock = belowBlockId.equals("bedrock");
+            Boolean prevBedrock = wasOnBedrock.put(id, onBedrock);
+            if (onBedrock && (prevBedrock == null || !prevBedrock)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.STAND_ON_BEDROCK);
+            }
+
+            // ==================== 新增：经验 / 等级 ====================
+
+            int curLevel = player.experienceLevel;
+            float curProgress = player.experienceProgress;
+
+            Integer pLevel = prevExperienceLevel.put(id, curLevel);
+            if (pLevel != null && curLevel > pLevel) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.LEVEL_UP);
+            }
+
+            Float pProgress = prevExperienceProgress.put(id, curProgress);
+            if (pProgress != null && (curProgress > pProgress || curLevel > (pLevel != null ? pLevel : curLevel))) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.GAIN_EXPERIENCE);
+            }
+
+            // ==================== 新增：穿装备检测 ====================
+            if (isWearingAnyArmor(player)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.WEAR_ARMOR);
+            }
+
+            // ==================== 新增：手持物品检测 ====================
+            var mainHandStack = player.getMainHandStack();
+            if (!mainHandStack.isEmpty()) {
+                String heldId = mainHandStack.getItem().getRegistryEntry().registryKey().getValue().getPath();
+                if (heldId.equals("crafting_table")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_CRAFTING_TABLE);
+                }
+                if (heldId.equals("furnace")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_FURNACE);
+                }
+                if (heldId.equals("wooden_pickaxe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_WOODEN_PICKAXE);
+                }
+                if (heldId.equals("iron_pickaxe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_IRON_PICKAXE);
+                }
+                if (heldId.equals("stone_pickaxe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_STONE_PICKAXE);
+                }
+                if (heldId.equals("wooden_axe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_WOODEN_AXE);
+                }
+                if (heldId.equals("stone_axe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_STONE_AXE);
+                }
+                if (heldId.equals("iron_axe")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_IRON_AXE);
+                }
+            }
+
+            // ==================== 新增：快捷栏选择检测 ====================
+            int selectedSlot = player.getInventory().selectedSlot;
+            if (selectedSlot == 0) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.SELECT_SLOT_FIRST);
+            }
+            if (selectedSlot == 8) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.SELECT_SLOT_LAST);
+            }
+
+            // ==================== 新增：下降5格高度检测 ====================
+            if (!onGround) {
+                // 玩家在空中
+                fallStartY.putIfAbsent(id, curY);
+                double startY = fallStartY.get(id);
+                if (startY - curY >= 5 && !fallTriggered.getOrDefault(id, false)) {
+                    fallTriggered.put(id, true);
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.FALL_5_BLOCKS);
+                }
+            } else {
+                // 玩家落地，重置状态
+                fallStartY.remove(id);
+                fallTriggered.remove(id);
+            }
+
+            // ==================== 新增：背包物品 —— 磨制石材 / 石头 / 凝灰岩 / 树叶 ====================
+            checkInventoryItem(server, player, id, "polished_andesite", null, TriggerType.HAS_POLISHED_ANDESITE);
+            checkInventoryItem(server, player, id, "polished_granite", null, TriggerType.HAS_POLISHED_GRANITE);
+            checkInventoryItem(server, player, id, "polished_diorite", null, TriggerType.HAS_POLISHED_DIORITE);
+            checkInventoryItem(server, player, id, "tuff", null, TriggerType.HAS_TUFF);
+            checkInventoryItem(server, player, id, "stone", null, TriggerType.HAS_STONE);
+            checkInventoryItem(server, player, id, "smooth_stone", null, TriggerType.HAS_SMOOTH_STONE);
+            // 树叶（任意种类，ID 以 _leaves 结尾或就是 leaves）
+            if (playerHasItemEndingWith(player, "_leaves") || playerHasItem(player, "leaves")) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HAS_LEAVES);
+            }
+
+            // ==================== 新增：背包物品 —— 杂项 ====================
+            checkInventoryItem(server, player, id, "bone", null, TriggerType.HAS_BONE);
+            checkInventoryItem(server, player, id, "string", null, TriggerType.HAS_STRING);
+            checkInventoryItem(server, player, id, "ender_pearl", null, TriggerType.HAS_ENDER_PEARL);
+            checkInventoryItem(server, player, id, "leather", null, TriggerType.HAS_LEATHER);
+            // 羊毛（任意颜色，ID 以 _wool 结尾）
+            if (playerHasItemEndingWith(player, "_wool")) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HAS_WOOL);
+            }
+
+            // ==================== 新增：背包桶类物品 ====================
+            checkInventoryItem(server, player, id, "bucket", null, TriggerType.HAS_BUCKET);
+            checkInventoryItem(server, player, id, "water_bucket", null, TriggerType.HAS_WATER_BUCKET);
+            checkInventoryItem(server, player, id, "lava_bucket", null, TriggerType.HAS_LAVA_BUCKET);
+
+            // ==================== 新增：背包里没有某类物品 ====================
+            if (!playerHasIronToolOrArmor(player)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_IRON_TOOLS_OR_ARMOR);
+            }
+            if (!playerHasDiamondToolOrArmor(player)) {
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_DIAMOND_TOOLS_OR_ARMOR);
+            }
+
+            // ==================== 新增：副手持盾检测 ====================
+            var offhandStack = player.getOffHandStack();
+            if (!offhandStack.isEmpty()) {
+                String offId = offhandStack.getItem().getRegistryEntry().registryKey().getValue().getPath();
+                if (offId.equals("shield")) {
+                    GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.HOLD_SHIELD_OFFHAND);
+                }
+            }
+
+            // ==================== 新增：丢弃30个方块触发检查 ====================
+            checkDrop30Trigger(server, player, id);
+
+            // ==================== 新增：不跳/不潜行/不疾跑倒计时 ====================
+            // 初始化：首次 tick 记录当前 tick 作为起点
+            lastJumpTick.putIfAbsent(id, tick);
+            lastSneakActionTick.putIfAbsent(id, tick);
+            lastSprintActionTick.putIfAbsent(id, tick);
+
+            // 检测跳跃：离地时更新 lastJumpTick
+            if (!onGround && prevGround != null && prevGround) {
+                lastJumpTick.put(id, tick);
+            }
+            // 检测潜行：开始潜行时更新 lastSneakActionTick
+            if (sneaking && (prevSneak == null || !prevSneak)) {
+                lastSneakActionTick.put(id, tick);
+            }
+            // 检测疾跑：开始疾跑时更新 lastSprintActionTick
+            if (sprinting && (prevSprint == null || !prevSprint)) {
+                lastSprintActionTick.put(id, tick);
+            }
+
+            long sinceJump = (tick - lastJumpTick.get(id)) / 20;
+            long sinceSneak = (tick - lastSneakActionTick.get(id)) / 20;
+            long sinceSprint = (tick - lastSprintActionTick.get(id)) / 20;
+
+            if (sinceJump >= 30 && !noJump30sTriggered.getOrDefault(id, false)) {
+                noJump30sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_JUMP_30S);
+            }
+            if (sinceSneak >= 30 && !noSneak30sTriggered.getOrDefault(id, false)) {
+                noSneak30sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_SNEAK_30S);
+            }
+            if (sinceSprint >= 30 && !noSprint30sTriggered.getOrDefault(id, false)) {
+                noSprint30sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_SPRINT_30S);
+            }
+            if (sinceJump >= 60 && !noJump60sTriggered.getOrDefault(id, false)) {
+                noJump60sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_JUMP_60S);
+            }
+            if (sinceSneak >= 60 && !noSneak60sTriggered.getOrDefault(id, false)) {
+                noSneak60sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_SNEAK_60S);
+            }
+            if (sinceSprint >= 60 && !noSprint60sTriggered.getOrDefault(id, false)) {
+                noSprint60sTriggered.put(id, true);
+                GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.NO_SPRINT_60S);
+            }
         }
 
         // 清理离线玩家状态
@@ -467,6 +968,43 @@ public class WordTriggerDetector {
         wasHasRottenFlesh.keySet().retainAll(onlineIds);
         wasHasDiamond.keySet().retainAll(onlineIds);
         wasHasDirt.keySet().retainAll(onlineIds);
+        // 新增
+        wasHungerBelow18.keySet().retainAll(onlineIds);
+        wasHungerAbove18.keySet().retainAll(onlineIds);
+        wasYAbove70.keySet().retainAll(onlineIds);
+        wasYBelow70.keySet().retainAll(onlineIds);
+        wasOnGranite.keySet().retainAll(onlineIds);
+        wasOnTuff.keySet().retainAll(onlineIds);
+        wasOnBedrock.keySet().retainAll(onlineIds);
+        wasBlockAboveHead.keySet().retainAll(onlineIds);
+        wasNoBlockAboveHead.keySet().retainAll(onlineIds);
+        wasFarFromAll15m.keySet().retainAll(onlineIds);
+        wasTooCloseToPlayer.keySet().retainAll(onlineIds);
+        sprintStartTick.keySet().retainAll(onlineIds);
+        sneakStartTick.keySet().retainAll(onlineIds);
+        jumpCount.keySet().retainAll(onlineIds);
+        sprint30sTriggered.keySet().retainAll(onlineIds);
+        sneak5sTriggered.keySet().retainAll(onlineIds);
+        jump10Triggered.keySet().retainAll(onlineIds);
+        prevExperienceLevel.keySet().retainAll(onlineIds);
+        prevExperienceProgress.keySet().retainAll(onlineIds);
+        wasOnGround.keySet().retainAll(onlineIds);
+        lastEatenFoodId.keySet().retainAll(onlineIds);
+        fallStartY.keySet().retainAll(onlineIds);
+        fallTriggered.keySet().retainAll(onlineIds);
+        placeCount.keySet().retainAll(onlineIds);
+        place30Triggered.keySet().retainAll(onlineIds);
+        dropCount.keySet().retainAll(onlineIds);
+        drop30Triggered.keySet().retainAll(onlineIds);
+        lastJumpTick.keySet().retainAll(onlineIds);
+        lastSneakActionTick.keySet().retainAll(onlineIds);
+        lastSprintActionTick.keySet().retainAll(onlineIds);
+        noJump30sTriggered.keySet().retainAll(onlineIds);
+        noSneak30sTriggered.keySet().retainAll(onlineIds);
+        noSprint30sTriggered.keySet().retainAll(onlineIds);
+        noJump60sTriggered.keySet().retainAll(onlineIds);
+        noSneak60sTriggered.keySet().retainAll(onlineIds);
+        noSprint60sTriggered.keySet().retainAll(onlineIds);
     }
 
     /** 判断方块 ID 是否为矿物（含原版矿石和深板岩变种） */
@@ -528,6 +1066,22 @@ public class WordTriggerDetector {
         return true;
     }
 
+    /**
+     * 向上扫描直到世界高度，检查玩家头顶是否有任意非空气方块
+     */
+    private static boolean hasBlockAboveHead(ServerPlayerEntity player) {
+        var world = player.getEntityWorld();
+        var feetPos = player.getBlockPos();
+        int startY = feetPos.getY() + 2; // 从头顶上方一格开始
+        int topY = world.getDimension().height() - 1;
+        for (int y = startY; y <= topY; y++) {
+            if (!world.getBlockState(new net.minecraft.util.math.BlockPos(feetPos.getX(), y, feetPos.getZ())).isAir()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 根据方块 ID 返回对应的细分矿石触发类型，非矿石返回 null */
     private static TriggerType getSpecificOreType(String blockId) {
         if (blockId.contains("coal_ore"))       return TriggerType.MINE_COAL;
@@ -572,6 +1126,150 @@ public class WordTriggerDetector {
             if (id.endsWith(suffix)) return true;
         }
         return false;
+    }
+
+    /** 判断伤害来源是否为火焰相关 */
+    private static boolean isFireDamage(net.minecraft.entity.damage.DamageSource source) {
+        String typeId = source.getType().msgId();
+        return typeId.equals("inFire") || typeId.equals("onFire")
+                || typeId.equals("lava") || typeId.equals("hotFloor")
+                || typeId.equals("campfire") || typeId.equals("inFire")
+                || typeId.contains("fire") || typeId.contains("flame")
+                || typeId.contains("burn") || typeId.contains("magma");
+    }
+
+    /** 根据方块物品 ID 返回对应的放置触发类型 */
+    private static TriggerType getPlaceBlockType(String itemId) {
+        switch (itemId) {
+            case "dirt":               return TriggerType.PLACE_DIRT;
+            case "cobblestone":        return TriggerType.PLACE_COBBLESTONE;
+            case "cobbled_deepslate":  return TriggerType.PLACE_COBBLED_DEEPSLATE;
+            case "andesite":           return TriggerType.PLACE_ANDESITE;
+            case "granite":            return TriggerType.PLACE_GRANITE;
+            case "diorite":            return TriggerType.PLACE_DIORITE;
+            case "tuff":               return TriggerType.PLACE_TUFF;
+            case "crafting_table":     return TriggerType.PLACE_CRAFTING_TABLE;
+            case "furnace":            return TriggerType.PLACE_FURNACE;
+            case "chest":              return TriggerType.PLACE_CHEST;
+            default:                   return null;
+        }
+    }
+
+    /** 根据方块 ID 返回对应的打开容器触发类型 */
+    private static TriggerType getOpenContainerType(String blockId) {
+        switch (blockId) {
+            case "chest":
+            case "trapped_chest":
+            case "ender_chest":
+                return TriggerType.OPEN_CHEST;
+            case "furnace":
+            case "blast_furnace":
+            case "smoker":
+                return TriggerType.OPEN_FURNACE;
+            case "crafting_table":
+                return TriggerType.OPEN_CRAFTING_TABLE;
+            default:
+                return null;
+        }
+    }
+
+    /** 检查玩家是否穿戴了任意盔甲（头盔/胸甲/护腿/靴子任意一件） */
+    private static boolean isWearingAnyArmor(ServerPlayerEntity player) {
+        for (EquipmentSlot slot : new EquipmentSlot[]{
+                EquipmentSlot.HEAD, EquipmentSlot.CHEST,
+                EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            if (!player.getEquippedStack(slot).isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /** 检查玩家背包/装备栏中是否有铁质工具或防具 */
+    private static boolean playerHasIronToolOrArmor(ServerPlayerEntity player) {
+        return playerHasItemStartingWith(player, "iron_");
+    }
+
+    /** 检查玩家背包/装备栏中是否有钻石工具或防具 */
+    private static boolean playerHasDiamondToolOrArmor(ServerPlayerEntity player) {
+        return playerHasItemStartingWith(player, "diamond_");
+    }
+
+    /** 检查玩家背包中是否有以指定前缀开头的物品 */
+    private static boolean playerHasItemStartingWith(ServerPlayerEntity player, String prefix) {
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            var stack = inv.getStack(i);
+            if (stack.isEmpty()) continue;
+            String id = stack.getItem().getRegistryEntry().registryKey().getValue().getPath();
+            if (id.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
+    /** 重置指定玩家的跳跃计数（词条变为跳跃10次时调用） */
+    public static void resetJumpCount(UUID playerId) {
+        jumpCount.remove(playerId);
+        jump10Triggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的持续望向同方向状态（词条变为持续看向同一方向五秒时调用） */
+    public static void resetLookSameDir(UUID playerId) {
+        lastYaw.remove(playerId);
+        lastPitch.remove(playerId);
+        lookSameDirTicks.remove(playerId);
+        lookSameDirTriggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的放置计数（词条变为放置30个方块时调用） */
+    public static void resetPlaceCount(UUID playerId) {
+        placeCount.remove(playerId);
+        place30Triggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的丢弃计数（词条变为丢弃30个方块时调用） */
+    public static void resetDropCount(UUID playerId) {
+        dropCount.remove(playerId);
+        drop30Triggered.remove(playerId);
+    }
+
+    /** 增加指定玩家的丢弃计数（由 Mixin 调用） */
+    public static void incrementDropCount(UUID playerId) {
+        int cnt = dropCount.getOrDefault(playerId, 0) + 1;
+        dropCount.put(playerId, cnt);
+    }
+
+    /** 检查并触发丢弃30个方块（由 tick 调用） */
+    private static void checkDrop30Trigger(MinecraftServer server, ServerPlayerEntity player, UUID id) {
+        if (dropCount.getOrDefault(id, 0) >= 30 && !drop30Triggered.getOrDefault(id, false)) {
+            drop30Triggered.put(id, true);
+            GameManager.getInstance().onPlayerTriggered(server, player, TriggerType.DROP_30_ITEMS);
+        }
+    }
+
+    /** 重置指定玩家的不跳倒计时（词条变为不跳类时调用） */
+    public static void resetNoJumpState(UUID playerId) {
+        lastJumpTick.remove(playerId);
+        noJump30sTriggered.remove(playerId);
+        noJump60sTriggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的不潜行倒计时（词条变为不潜行类时调用） */
+    public static void resetNoSneakState(UUID playerId) {
+        lastSneakActionTick.remove(playerId);
+        noSneak30sTriggered.remove(playerId);
+        noSneak60sTriggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的不疾跑倒计时（词条变为不疾跑类时调用） */
+    public static void resetNoSprintState(UUID playerId) {
+        lastSprintActionTick.remove(playerId);
+        noSprint30sTriggered.remove(playerId);
+        noSprint60sTriggered.remove(playerId);
+    }
+
+    /** 重置指定玩家的头顶方块状态（词条变为头顶有/无方块遮挡时调用，使其立即触发） */
+    public static void resetBlockAboveHeadState(UUID playerId) {
+        wasBlockAboveHead.remove(playerId);
+        wasNoBlockAboveHead.remove(playerId);
     }
 
     /** 清空所有状态 Map，在新游戏开始时调用 */
@@ -620,5 +1318,42 @@ public class WordTriggerDetector {
         wasHasRottenFlesh.clear();
         wasHasDiamond.clear();
         wasHasDirt.clear();
+        // 新增
+        wasHungerBelow18.clear();
+        wasHungerAbove18.clear();
+        wasYAbove70.clear();
+        wasYBelow70.clear();
+        wasOnGranite.clear();
+        wasOnTuff.clear();
+        wasOnBedrock.clear();
+        wasBlockAboveHead.clear();
+        wasNoBlockAboveHead.clear();
+        wasFarFromAll15m.clear();
+        wasTooCloseToPlayer.clear();
+        sprintStartTick.clear();
+        sneakStartTick.clear();
+        jumpCount.clear();
+        sprint30sTriggered.clear();
+        sneak5sTriggered.clear();
+        jump10Triggered.clear();
+        prevExperienceLevel.clear();
+        prevExperienceProgress.clear();
+        wasOnGround.clear();
+        lastEatenFoodId.clear();
+        fallStartY.clear();
+        fallTriggered.clear();
+        placeCount.clear();
+        place30Triggered.clear();
+        dropCount.clear();
+        drop30Triggered.clear();
+        lastJumpTick.clear();
+        lastSneakActionTick.clear();
+        lastSprintActionTick.clear();
+        noJump30sTriggered.clear();
+        noSneak30sTriggered.clear();
+        noSprint30sTriggered.clear();
+        noJump60sTriggered.clear();
+        noSneak60sTriggered.clear();
+        noSprint60sTriggered.clear();
     }
 }

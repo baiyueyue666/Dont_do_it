@@ -58,6 +58,17 @@ public class GameManager {
     /** 当前特殊事件剩余持续时间（秒），仅对有持续时长的活动事件有效 */
     private int activeSpecialEventRemaining = 0;
 
+    /** 钻石祝福是否激活（挖钻石矿回血） */
+    private boolean diamondBlessingActive = false;
+    /** 豁免祝福是否激活（装备耐久不消耗） */
+    private boolean durabilityBlessingActive = false;
+    /** 装备锈蚀是否激活（耐久五倍消耗） */
+    private boolean equipmentRustActive = false;
+    /** 饥饿疫病是否激活（饥饿值飞速下降，食物回复减半） */
+    private boolean hungerDiseaseActive = false;
+    /** 全员变幼体是否激活（玩家缩小100倍） */
+    private boolean everyoneBabyActive = false;
+
     private GameManager() {}
 
     public static GameManager getInstance() { return INSTANCE; }
@@ -72,6 +83,21 @@ public class GameManager {
     public GameSettings getSettings() { return settings; }
     public PlayerWordData getPlayerData(UUID playerId) { return playerDataMap.get(playerId); }
     public Collection<PlayerWordData> getAllPlayerData() { return playerDataMap.values(); }
+
+    public boolean isDiamondBlessingActive() { return diamondBlessingActive; }
+    public void setDiamondBlessingActive(boolean active) { this.diamondBlessingActive = active; }
+
+    public boolean isDurabilityBlessingActive() { return durabilityBlessingActive; }
+    public void setDurabilityBlessingActive(boolean active) { this.durabilityBlessingActive = active; }
+
+    public boolean isEquipmentRustActive() { return equipmentRustActive; }
+    public void setEquipmentRustActive(boolean active) { this.equipmentRustActive = active; }
+
+    public boolean isHungerDiseaseActive() { return hungerDiseaseActive; }
+    public void setHungerDiseaseActive(boolean active) { this.hungerDiseaseActive = active; }
+
+    public boolean isEveryoneBabyActive() { return everyoneBabyActive; }
+    public void setEveryoneBabyActive(boolean active) { this.everyoneBabyActive = active; }
 
     // ==================== 游戏流程 ====================
 
@@ -105,16 +131,29 @@ public class GameManager {
             TeamColor team = TeamColor.fromIndex(i);
             WordPool.WordEntry entry = drawn.get(i);
             PlayerWordData data = new PlayerWordData(player.getUuid(), team, entry,
-                    GameSettings.DEFAULT_HEARTS, timerSec);
+                    settings.getDefaultHearts(), timerSec);
             playerDataMap.put(player.getUuid(), data);
         }
 
         state = GameState.RUNNING;
 
+        // 处理初始分配的即时触发词条（直接扣心/回心）
+        for (ServerPlayerEntity player : players) {
+            PlayerWordData data = playerDataMap.get(player.getUuid());
+            if (data != null) {
+                handleInstantTrigger(data, server, 0);
+            }
+        }
+
         // 初始化特殊事件倒计时
         specialEventCountdown = settings.getSpecialEventTimerSeconds();
         activeSpecialEvent = null;
         activeSpecialEventRemaining = 0;
+        diamondBlessingActive = false;
+        durabilityBlessingActive = false;
+        equipmentRustActive = false;
+        hungerDiseaseActive = false;
+        everyoneBabyActive = false;
 
         // 清空所有玩家背包
         for (ServerPlayerEntity player : players) {
@@ -135,7 +174,7 @@ public class GameManager {
         // 广播开始
         server.getPlayerManager().broadcast(
                 Text.literal("§a🎮 「不要做挑战」开始！每人 §c%d ❤️ §a| 词条每 §e%d秒 §a自动更换"
-                        .formatted(GameSettings.DEFAULT_HEARTS, timerSec)), false);
+                        .formatted(settings.getDefaultHearts(), timerSec)), false);
     }
 
     /**
@@ -147,6 +186,11 @@ public class GameManager {
         // 清理特殊事件
         activeSpecialEvent = null;
         activeSpecialEventRemaining = 0;
+        diamondBlessingActive = false;
+        durabilityBlessingActive = false;
+        equipmentRustActive = false;
+        hungerDiseaseActive = false;
+        everyoneBabyActive = false;
         specialEventCountdown = 0;
         removeSpecialEventBossBar(server);
 
@@ -261,9 +305,22 @@ public class GameManager {
     public void tickSpecialEvent(MinecraftServer server) {
         if (!isRunning()) return;
 
+        // 特殊事件已关闭，跳过所有逻辑
+        if (!settings.isSpecialEventEnabled()) {
+            if (activeSpecialEvent != null) {
+                activeSpecialEvent = null;
+                activeSpecialEventRemaining = 0;
+                removeSpecialEventBossBar(server);
+            }
+            return;
+        }
+
         if (activeSpecialEvent != null) {
             // 有活动中的特殊事件
             if (!activeSpecialEvent.isInstant() && activeSpecialEventRemaining > 0) {
+                // 每 tick 执行持续事件的动作（如美食雨、经验风暴）
+                specialEventPool.tickActiveEvent(server, activeSpecialEvent, activeSpecialEventRemaining);
+
                 activeSpecialEventRemaining--;
                 syncSpecialEventBossBar(server, activeSpecialEvent.getDisplayName()
                                 + " - " + activeSpecialEventRemaining + "s 剩余",
@@ -271,7 +328,8 @@ public class GameManager {
                         activeSpecialEvent.getBossBarColor());
 
                 if (activeSpecialEventRemaining <= 0) {
-                    // 事件结束
+                    // 事件结束，执行清理
+                    specialEventPool.onEventEnd(server, activeSpecialEvent);
                     server.getPlayerManager().broadcast(
                             Text.literal("§a✅ 特殊事件「" + activeSpecialEvent.getDisplayName() + "」已结束！"), false);
                     activeSpecialEvent = null;
@@ -297,6 +355,11 @@ public class GameManager {
     /** 触发一个随机特殊事件 */
     private void triggerSpecialEvent(MinecraftServer server) {
         SpecialEventType type = specialEventPool.drawRandom();
+        triggerSpecialEvent(server, type);
+    }
+
+    /** 触发指定特殊事件 */
+    private void triggerSpecialEvent(MinecraftServer server, SpecialEventType type) {
         activeSpecialEvent = type;
 
         // 执行事件
@@ -314,6 +377,25 @@ public class GameManager {
                             + " - " + activeSpecialEventRemaining + "s 剩余",
                     1.0f, type.getBossBarColor());
         }
+    }
+
+    /**
+     * 根据名称触发指定特殊事件（供命令使用，无论游戏是否运行）
+     * @return 是否成功触发
+     */
+    public boolean triggerSpecialEventByName(MinecraftServer server, String eventName) {
+        if (!isRunning()) return false;
+        SpecialEventType type = specialEventPool.findByName(eventName);
+        if (type == null) return false;
+        // 如果已有活动事件，先结束它
+        if (activeSpecialEvent != null) {
+            server.getPlayerManager().broadcast(
+                    Text.literal("§e⚠ 特殊事件「" + activeSpecialEvent.getDisplayName() + "」被强制结束"), false);
+            activeSpecialEvent = null;
+            activeSpecialEventRemaining = 0;
+        }
+        triggerSpecialEvent(server, type);
+        return true;
     }
 
     /** 同步特殊事件 BossBar（倒计时模式） */
@@ -446,6 +528,36 @@ public class GameManager {
 
         String oldWord = data.getWordText();
         data.replaceWord(entry, settings.getWordChangeTimerSeconds());
+        // 处理即时触发词条（直接扣心/回心）
+        handleInstantTrigger(data, server, 0);
+        // 重置跳跃计数（如果新词条是跳跃10次）
+        if (entry.triggerType() == TriggerType.JUMP_10_TIMES) {
+            WordTriggerDetector.resetJumpCount(target.getUuid());
+        }
+        // 重置持续看向方向状态（如果新词条是持续看向同一方向五秒）
+        if (entry.triggerType() == TriggerType.LOOK_SAME_DIR_5S) {
+            WordTriggerDetector.resetLookSameDir(target.getUuid());
+        }
+        // 重置放置/丢弃计数
+        if (entry.triggerType() == TriggerType.PLACE_30_BLOCKS) {
+            WordTriggerDetector.resetPlaceCount(target.getUuid());
+        }
+        if (entry.triggerType() == TriggerType.DROP_30_ITEMS) {
+            WordTriggerDetector.resetDropCount(target.getUuid());
+        }
+        // 重置不跳/不潜行/不疾跑倒计时
+        if (entry.triggerType() == TriggerType.NO_JUMP_30S || entry.triggerType() == TriggerType.NO_JUMP_60S) {
+            WordTriggerDetector.resetNoJumpState(target.getUuid());
+        }
+        if (entry.triggerType() == TriggerType.NO_SNEAK_30S || entry.triggerType() == TriggerType.NO_SNEAK_60S) {
+            WordTriggerDetector.resetNoSneakState(target.getUuid());
+        }
+        if (entry.triggerType() == TriggerType.NO_SPRINT_30S || entry.triggerType() == TriggerType.NO_SPRINT_60S) {
+            WordTriggerDetector.resetNoSprintState(target.getUuid());
+        }
+        if (entry.triggerType() == TriggerType.BLOCK_ABOVE_HEAD || entry.triggerType() == TriggerType.NO_BLOCK_ABOVE_HEAD) {
+            WordTriggerDetector.resetBlockAboveHeadState(target.getUuid());
+        }
         syncOnePlayer(server, data);
 
         String teamName = data.getTeamColor().getDisplayName();
@@ -458,8 +570,104 @@ public class GameManager {
     // ==================== 内部方法 ====================
 
     private void replaceWordForPlayer(PlayerWordData data, MinecraftServer server) {
+        replaceWordForPlayer(data, server, 0);
+    }
+
+    /** 替换词条，支持即时词条递归处理（maxDepth 防无限递归） */
+    private void replaceWordForPlayer(PlayerWordData data, MinecraftServer server, int depth) {
+        if (depth > 5) return; // 防无限递归
         WordPool.WordEntry newEntry = wordPool.drawSingle();
         data.replaceWord(newEntry, settings.getWordChangeTimerSeconds());
+        // 重置跳跃计数（如果新词条是跳跃10次）
+        if (newEntry.triggerType() == TriggerType.JUMP_10_TIMES) {
+            WordTriggerDetector.resetJumpCount(data.getPlayerId());
+        }
+        // 重置持续看向方向状态（如果新词条是持续看向同一方向五秒）
+        if (newEntry.triggerType() == TriggerType.LOOK_SAME_DIR_5S) {
+            WordTriggerDetector.resetLookSameDir(data.getPlayerId());
+        }
+        // 重置放置/丢弃计数
+        if (newEntry.triggerType() == TriggerType.PLACE_30_BLOCKS) {
+            WordTriggerDetector.resetPlaceCount(data.getPlayerId());
+        }
+        if (newEntry.triggerType() == TriggerType.DROP_30_ITEMS) {
+            WordTriggerDetector.resetDropCount(data.getPlayerId());
+        }
+        // 重置不跳/不潜行/不疾跑倒计时
+        if (newEntry.triggerType() == TriggerType.NO_JUMP_30S || newEntry.triggerType() == TriggerType.NO_JUMP_60S) {
+            WordTriggerDetector.resetNoJumpState(data.getPlayerId());
+        }
+        if (newEntry.triggerType() == TriggerType.NO_SNEAK_30S || newEntry.triggerType() == TriggerType.NO_SNEAK_60S) {
+            WordTriggerDetector.resetNoSneakState(data.getPlayerId());
+        }
+        if (newEntry.triggerType() == TriggerType.NO_SPRINT_30S || newEntry.triggerType() == TriggerType.NO_SPRINT_60S) {
+            WordTriggerDetector.resetNoSprintState(data.getPlayerId());
+        }
+        // 重置头顶方块状态（词条变为头顶有/无方块遮挡时立即触发）
+        if (newEntry.triggerType() == TriggerType.BLOCK_ABOVE_HEAD || newEntry.triggerType() == TriggerType.NO_BLOCK_ABOVE_HEAD) {
+            WordTriggerDetector.resetBlockAboveHeadState(data.getPlayerId());
+        }
+        // 检查是否为即时触发词条
+        handleInstantTrigger(data, server, depth);
+    }
+
+    /** 处理即时触发词条（直接扣心/回心） */
+    private void handleInstantTrigger(PlayerWordData data, MinecraftServer server, int depth) {
+        TriggerType type = data.getTriggerType();
+        if (type != TriggerType.INSTANT_LOSE_HEART && type != TriggerType.INSTANT_GAIN_HEART) {
+            return; // 非即时词条，无需处理
+        }
+
+        ServerPlayerEntity player = server.getPlayerManager().getPlayer(data.getPlayerId());
+        if (player == null) return;
+
+        String teamName = data.getTeamColor().getDisplayName();
+        String playerName = player.getName().getString();
+
+        if (type == TriggerType.INSTANT_LOSE_HEART) {
+            boolean eliminated = data.loseHeart();
+            if (eliminated) {
+                String eliminationMsg = "§c💀 " + teamName + " " + playerName + " §f因「§b直接扣一颗心§f」被淘汰！";
+                broadcastNotification(server, "elimination", eliminationMsg);
+                server.getPlayerManager().broadcast(Text.literal(eliminationMsg), false);
+                player.changeGameMode(GameMode.SPECTATOR);
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    p.playSound(SoundEvents.ENTITY_ENDER_DRAGON_DEATH, 1.0f, 1.0f);
+                }
+                syncOnePlayer(server, data);
+                checkWinCondition(server);
+            } else {
+                String triggerMsg = "§e⚡ " + teamName + " " + playerName + " §f触发了「§b直接扣一颗心§f」！剩余 §c%d ❤️".formatted(data.getHearts());
+                broadcastNotification(server, "trigger", triggerMsg);
+                server.getPlayerManager().broadcast(Text.literal(triggerMsg), false);
+                for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                    p.playSound(SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 1.5f);
+                }
+                replaceWordForPlayer(data, server, depth + 1);
+                syncOnePlayer(server, data);
+            }
+        } else { // INSTANT_GAIN_HEART
+            if (data.getHearts() < settings.getDefaultHearts()) {
+                data.addHeart();
+            }
+            String triggerMsg = "§a💚 " + teamName + " " + playerName + " §f触发了「§b直接回一颗心§f」！当前 §c%d ❤️".formatted(data.getHearts());
+            broadcastNotification(server, "trigger", triggerMsg);
+            server.getPlayerManager().broadcast(Text.literal(triggerMsg), false);
+            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                p.playSound(SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 2.0f);
+            }
+            replaceWordForPlayer(data, server, depth + 1);
+            syncOnePlayer(server, data);
+        }
+    }
+
+    public void checkWinConditionPublic(MinecraftServer server) {
+        checkWinCondition(server);
+    }
+
+    /** 同步单个玩家数据（供 SpecialEventPool 等外部调用） */
+    public void syncPlayerDataPublic(MinecraftServer server, PlayerWordData data) {
+        syncOnePlayer(server, data);
     }
 
     private void checkWinCondition(MinecraftServer server) {
@@ -532,7 +740,7 @@ public class GameManager {
         GamePackets.SyncOnePlayerPayload payload = new GamePackets.SyncOnePlayerPayload(
                 data.getPlayerId(), data.getTeamColor().name(), data.getWordText(),
                 data.getHearts(), data.isEliminated(), data.getCountdownSeconds(),
-                settings.getWordChangeTimerSeconds());
+                settings.getWordChangeTimerSeconds(), settings.getDefaultHearts());
         for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(p, payload);
         }

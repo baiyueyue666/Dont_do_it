@@ -67,11 +67,13 @@
 
 ## ⚡ 特殊事件
 
-特殊事件由独立倒计时控制，倒计时归零时随机触发，影响所有存活玩家。
+特殊事件由独立倒计时控制，倒计时归零时随机触发，影响所有存活玩家。共有 **30 种**特殊事件，含 1 种 1% 概率超级事件。
 
 | 事件 | 类型 | 效果 |
 |------|------|------|
-| 🔥 怪物狂潮 | 瞬时 | 每位存活玩家周围生成 **3 只**随机敌对生物（僵尸、骷髅、蜘蛛、苦力怕、女巫、末影人、尸壳、流浪者） |
+| 🔥 怪物狂潮 | 瞬时 | 每位存活玩家周围生成 **3 只**随机敌对生物 |
+| ⚡ 交易商人 | 持续 30s | 1% 超级事件 — 每位玩家身边出现盔甲匠村民，可用钻石换取全套下界合金装备 |
+| 🎯 …等 30 种事件 | — | 包含钻石馈赠、诅咒、美食雨、经验风暴、TNT雨、玩家互换、全员变幼体、粘液附身、箭雨试炼等 |
 
 ---
 
@@ -170,11 +172,13 @@ Configurable via the Game Book:
 
 ## ⚡ Special Events (English)
 
-Special events are controlled by an independent countdown timer. When the timer reaches zero, a random event triggers, affecting all surviving players.
+Special events are controlled by an independent countdown timer. When the timer reaches zero, a random event triggers, affecting all surviving players. There are **30** special events, including 1 super event with 1% probability.
 
 | Event | Type | Effect |
 |-------|------|--------|
-| 🔥 Monster Rampage | Instant | Spawns **3** random hostile mobs around each surviving player (Zombie, Skeleton, Spider, Creeper, Witch, Enderman, Husk, Stray) |
+| 🔥 Monster Rampage | Instant | Spawns **3** random hostile mobs around each surviving player |
+| ⚡ Trade Merchant | Lasts 30s | 1% super event — Armorer villager appears near each player, trading full netherite gear for diamonds |
+| 🎯 …30 events total | — | Including Diamond Gift, Curse, Food Rain, XP Storm, TNT Rain, Player Swap, Everyone Baby, Slime Possession, Arrow Trial, etc. |
 
 ---
 

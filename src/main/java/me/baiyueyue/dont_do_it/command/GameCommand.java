@@ -27,6 +27,7 @@ import static net.minecraft.server.command.CommandManager.literal;
  *   /dontdoit vote <玩家> false  —— 猜错扣心并换词条
  *   /dontdoit skip <玩家>        —— 跳过当前词条
  *   /dontdoit setword <玩家> <词条> —— 为玩家设置指定词条（测试用）
+ *   /dontdoit triggerspecialevent <特殊事件名> —— 触发指定特殊事件（测试用）
  */
 public class GameCommand {
 
@@ -53,6 +54,9 @@ public class GameCommand {
                                 .then(argument("player", EntityArgumentType.player())
                                         .then(argument("word", StringArgumentType.greedyString())
                                                 .executes(GameCommand::setWord))))
+                        .then(literal("triggerspecialevent")
+                                .then(argument("eventName", StringArgumentType.greedyString())
+                                        .executes(GameCommand::triggerSpecialEventCmd)))
         );
     }
 
@@ -125,5 +129,22 @@ public class GameCommand {
             return 0;
         }
         return 1;
+    }
+
+    private static int triggerSpecialEventCmd(CommandContext<ServerCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        GameManager gm = GameManager.getInstance();
+        if (!gm.isRunning()) {
+            ctx.getSource().sendFeedback(() -> Text.literal("§e游戏当前未在运行。"), false);
+            return 0;
+        }
+        String eventName = StringArgumentType.getString(ctx, "eventName");
+        boolean success = gm.triggerSpecialEventByName(ctx.getSource().getServer(), eventName);
+        if (success) {
+            ctx.getSource().sendFeedback(() -> Text.literal("§a✔ 特殊事件「" + eventName + "」已触发！"), false);
+            return 1;
+        } else {
+            ctx.getSource().sendFeedback(() -> Text.literal("§c特殊事件「" + eventName + "」不存在。"), false);
+            return 0;
+        }
     }
 }

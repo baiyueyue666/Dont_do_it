@@ -35,9 +35,10 @@ public class ClientPacketHandler {
                             GameHudRenderer.myEliminated = payload.eliminated();
                             GameHudRenderer.myCountdownSeconds = payload.countdownSeconds();
                             GameHudRenderer.totalTimerSeconds = payload.totalTimerSeconds();
+                            GameHudRenderer.myMaxHearts = payload.maxHearts();
                             GameHudRenderer.myTeamColor = payload.teamColor();
 
-                            BossBarManager.updateHealthBar(payload.hearts(), payload.eliminated());
+                            BossBarManager.updateHealthBar(payload.hearts(), payload.eliminated(), payload.maxHearts());
                             BossBarManager.updateCountdownBar(
                                     payload.countdownSeconds(), payload.totalTimerSeconds());
                         } else {

@@ -3,6 +3,7 @@
   "minVersion": "0.8",
   "package": "me.baiyueyue.dont_do_it.mixin.client",
   "compatibilityLevel": "JAVA_21",
+  "refmap": "dont_do_it.client.refmap.json",
   "client": [
   ],
   "injectors": {

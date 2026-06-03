@@ -3,11 +3,14 @@
   "minVersion": "0.8",
   "package": "me.baiyueyue.dont_do_it.mixin",
   "compatibilityLevel": "JAVA_21",
+  "refmap": "dont_do_it.refmap.json",
   "mixins": [
     "ServerPlayerEntityMixin",
     "ItemEntityMixin",
     "CraftingResultSlotMixin",
-    "PlayerInventoryMixin"
+    "PlayerInventoryMixin",
+    "ItemStackMixin",
+    "HungerManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

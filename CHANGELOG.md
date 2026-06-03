@@ -1,5 +1,39 @@
 # 开发日志
 
+## 2026-06-03
+
+### 1. 全员变幼体缩放调整
+- 宝宝缩放从原来的 1/100 调整为 **1/5**（初版 1/100 → 第一轮 1/16 → 最终 1/5）
+- 移动速度和跳跃高度同步缩放至 1/5
+
+### 2. 新增「交易商人」超级事件
+- **SpecialEventType.java** — 新增 `TRADE_MERCHANT("交易商人", 30, BossBar.Color.YELLOW, 1)`，权重=1
+- **SpecialEventPool.java** — 新增加权随机抽取机制（默认权重 100，超级事件权重 1），实现约 1% 触发概率
+- 每位存活玩家身边生成一名盔甲匠村民，提供下界合金装备交易：
+  - 1 木棍 + 2 钻石 → 下界合金剑
+  - 2 木棍 + 3 钻石 → 下界合金斧 / 下界合金镐
+  - 5/8/7/4 钻石 → 下界合金头盔/胸甲/护腿/靴
+- 触发时全体播放 `ENTITY_PLAYER_LEVELUP` 音效 + 特殊标题播报
+- 持续 30 秒，结束后村民消失
+
+### 3. 交易商人 Bug 修复
+- **问题 1**：交易界面打开后立即被关闭
+  - **根因**：`VillagerEntity` 创建后未正确设置 `VillagerData`，需通过 `RegistryWrapper.getOptional()` 将 `RegistryKey` 解析为 `RegistryEntry`
+  - **修复**：设置村民职业为盔甲匠（`VillagerProfession.ARMORER`，等级 5）
+- **问题 2**：触发音效不播放
+  - **根因**：`SoundEvents.UI_TOAST_CHALLENGE_COMPLETE` 属于客户端 UI 音效，服务端 `playSound()` 无法触发
+  - **修复**：改为 `SoundEvents.ENTITY_PLAYER_LEVELUP`（升级音效），并向全体玩家广播（与其他重要事件保持一致）
+
+### 4. MC 1.21.1 API 兼容修复
+- **BossBar.Color.GOLD** 在 1.21.1 中不存在 → 改为 `BossBar.Color.YELLOW`
+- **TradeOffer** 构造函数需使用 `TradedItem` 包装物品，第二购买项需用 `Optional.of(new TradedItem(...))`
+- **VillagerData** 构造函数参数必须为 `RegistryEntry<VillagerType>` + `RegistryEntry<VillagerProfession>`，不可直接传入 `RegistryKey`
+- **VillagerEntity** 创建方式改为 `EntityType.VILLAGER.create(world, SpawnReason.EVENT)`
+
+### 当前特殊事件总数：30 种 (其中交易商人为 1% 超级事件)
+
+---
+
 ## 2026-06-02
 
 ### 1. 新增视角方向类词条（6 种）

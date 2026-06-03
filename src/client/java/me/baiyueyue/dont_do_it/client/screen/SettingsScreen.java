@@ -13,16 +13,26 @@ import net.minecraft.text.Text;
  */
 public class SettingsScreen extends Screen {
 
-    public enum Mode { WORD_TIMER, SPECIAL_EVENT_TIMER }
+    public enum Mode { WORD_TIMER, SPECIAL_EVENT_TIMER, HEARTS }
 
     private final Mode mode;
     private int selectedWordTimer;
     private int selectedSpecialEventTimer;
+    private int selectedHearts;
 
     public SettingsScreen(Text title, int wordTimer, int specialEventTimer, Mode mode) {
         super(title);
         this.selectedWordTimer = wordTimer;
         this.selectedSpecialEventTimer = specialEventTimer;
+        this.selectedHearts = 15;
+        this.mode = mode;
+    }
+
+    public SettingsScreen(Text title, int wordTimer, int specialEventTimer, int hearts, Mode mode) {
+        super(title);
+        this.selectedWordTimer = wordTimer;
+        this.selectedSpecialEventTimer = specialEventTimer;
+        this.selectedHearts = hearts;
         this.mode = mode;
     }
 
@@ -43,17 +53,29 @@ public class SettingsScreen extends Screen {
                         .build());
             }
             y += GameSettings.TIMER_OPTIONS.length * 22 + 10;
-        } else {
+        } else if (mode == Mode.SPECIAL_EVENT_TIMER) {
             // ---- 特殊事件触发间隔 ----
             for (int i = 0; i < GameSettings.SPECIAL_EVENT_TIMER_OPTIONS.length; i++) {
                 int sec = GameSettings.SPECIAL_EVENT_TIMER_OPTIONS[i];
+                String label = sec == 0 ? "§c关闭" : ("§6" + sec + " 秒");
                 this.addDrawableChild(ButtonWidget.builder(
-                        Text.literal("§6" + sec + " 秒" + (selectedSpecialEventTimer == sec ? " §a✔" : "")),
+                        Text.literal(label + (selectedSpecialEventTimer == sec ? " §a✔" : "")),
                         btn -> selectSpecialEventTimer(sec))
                         .dimensions(centerX - 100, y + i * 22, 200, 20)
                         .build());
             }
             y += GameSettings.SPECIAL_EVENT_TIMER_OPTIONS.length * 22 + 10;
+        } else {
+            // ---- 血量上限 ----
+            for (int i = 0; i < GameSettings.HEART_OPTIONS.length; i++) {
+                int h = GameSettings.HEART_OPTIONS[i];
+                this.addDrawableChild(ButtonWidget.builder(
+                        Text.literal("§c" + h + " ❤" + (selectedHearts == h ? " §a✔" : "")),
+                        btn -> selectHearts(h))
+                        .dimensions(centerX - 100, y + i * 22, 200, 20)
+                        .build());
+            }
+            y += GameSettings.HEART_OPTIONS.length * 22 + 10;
         }
 
         // 返回（携带当前设置值回到大厅）
@@ -63,7 +85,7 @@ public class SettingsScreen extends Screen {
                     if (this.client != null) {
                         this.client.setScreen(new GameBookScreen(
                                 Text.literal("§6不要做挑战"),
-                                selectedWordTimer, selectedSpecialEventTimer));
+                                selectedWordTimer, selectedSpecialEventTimer, selectedHearts));
                     }
                 })
                 .dimensions(centerX - 100, y, 200, 20)
@@ -82,9 +104,15 @@ public class SettingsScreen extends Screen {
         rebuild();
     }
 
+    private void selectHearts(int hearts) {
+        selectedHearts = hearts;
+        sendSettings();
+        rebuild();
+    }
+
     private void sendSettings() {
         ClientPlayNetworking.send(new GamePackets.UpdateSettingsFullPayload(
-                selectedWordTimer, selectedSpecialEventTimer));
+                selectedWordTimer, selectedSpecialEventTimer, selectedHearts));
     }
 
     private void rebuild() {
@@ -104,9 +132,12 @@ public class SettingsScreen extends Screen {
         if (mode == Mode.WORD_TIMER) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.literal("§7选择词条更换倒计时"), centerX, y, 0xAAAAAA);
-        } else {
+        } else if (mode == Mode.SPECIAL_EVENT_TIMER) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.literal("§7选择特殊事件触发倒计时"), centerX, y, 0xAAAAAA);
+        } else {
+            context.drawCenteredTextWithShadow(this.textRenderer,
+                    Text.literal("§7选择血量上限"), centerX, y, 0xAAAAAA);
         }
     }
 
