@@ -32,36 +32,42 @@
 
 | 设置项 | 可选值 |
 |--------|--------|
-| 词条更换倒计时 | 60s / 120s / 180s |
-| 特殊事件触发倒计时 | 60s / 180s / 300s / 420s |
+| 词条更换倒计时 | 60s / 120s / 180s / 300s |
+| 特殊事件触发倒计时 | 关闭 / 60s / 180s / 300s / 420s |
+| 血量上限 | 3 / 5 / 10 / 15 / 30 心 |
 
 ---
 
-## 🎯 词条类型（共 71 种词条，18 类触发行为）
+## 🎯 词条类型（共 171 种词条，26 类触发行为）
 
-| 词条示例 | 触发行为 |
-|----------|----------|
-| 潜行 | 按下潜行键（Shift） |
-| 攻击生物 / 打怪 | 攻击任何生物 / 攻击敌对生物 |
-| 破坏方块 / 挖矿 | 破坏任意方块 / 挖掘矿石类方块 |
-| 破坏安山岩 / 闪长岩 / 深板岩 | 破坏对应方块 |
-| 放置方块 / 搭方块 | 放置任意方块 |
-| 发送聊天消息 / 打字说话 | 在聊天栏发送消息 |
-| 受到伤害 | 受到任何来源的伤害 |
-| 吃东西 | 进食 |
-| 疾跑 | 按下疾跑键 |
-| 丢弃物品 | 丢弃物品栏中的物品 |
-| 打开容器 | 打开箱子、熔炉等容器 |
-| 捡起物品 | 捡起地面上的掉落物 |
-| 拾取原木 / 获得钻石 | 捡起特定物品 |
-| 挖掘木头 / 石头 / 煤矿 / 铁矿 / 铜矿 / 金矿 / 钻石矿 | 破坏对应方块 |
-| 合成工作台 / 木镐 / 石镐 / 铁镐 / 木斧 / 石斧 / 铁斧 / 木剑 / 石剑 / 铁剑 | 在工作台/背包合成对应物品 |
-| 低头 / 抬头 / 看向东/南/西/北 | 视角方向变化 |
-| 禁止不动五秒 / 持续看向一个方向五秒 | 持续行为检测 |
-| 自闭（被方块包围）/ 沉入水中 / 浮空 | 环境状态检测 |
-| 站在草方块/树叶/石头/深板岩/安山岩/闪长岩上 | 站立方块检测 |
-| 死亡 / 复活 / 三/五/十秒不复活 | 死亡与复活事件 |
-| 背包里有XX（煤炭/铁锭/铜锭/工作台/熔炉/斧头/剑/各类镐/腐肉/钻石/泥土） | 背包物品存在性检测 |
+| 类别 | 词条示例 |
+|------|----------|
+| 基础行为 (15) | 潜行、攻击生物、打怪、破坏方块、挖矿、放置方块、搭方块、发送聊天消息、打字说话、受到伤害、吃东西、疾跑、丢弃物品、打开容器、捡起物品 |
+| 挖掘矿石 (7) | 挖掘木头、石头、煤矿、铁矿、铜矿、金矿、钻石矿 |
+| 挖掘细分 (7) | 挖掘安山岩、闪长岩、深板岩、花岗岩、凝灰岩、工作台、熔炉 |
+| 拾取类 (2) | 拾取原木、获得钻石 |
+| 合成类 (10) | 合成工作台、木/石/铁镐、木/石/铁斧、木/石/铁剑 |
+| 视角方向 (6) | 低头、抬头、看向东/南/西/北 |
+| 持续行为 (5) | 禁止不动五秒、持续看向一个方向五秒、连续奔跑30s、连续潜行5s、跳跃10次 |
+| 环境状态 (3) | 自闭（1×2封闭空间）、沉入水中、浮空 |
+| 站立方块 (9) | 站在草方块/树叶/石头/深板岩/安山岩/闪长岩/花岗岩/凝灰岩/基岩上 |
+| 死亡/复活 (10) | 死亡、复活、三/五/十秒不复活、摔死、岩浆里游泳、窒息、溺死、炸死 |
+| 背包物品 (34) | 背包里有煤炭/铁锭/铜锭/工作台/熔炉/斧头/剑/石镐/木镐/铁镐/腐肉/钻石/泥土/磨制安山岩/磨制花岗岩/磨制闪长岩/凝灰岩/石头/平滑石头/树叶/骨头/线/末影珍珠/皮革/羊毛/桶/水桶/岩浆桶；没有铁质工具或防具/没有钻石工具或防具 |
+| 饮食/即时 (3) | 吃腐肉、直接扣一颗心、直接回一颗心 |
+| 伤害细分 (4) | 受到火焰伤害、弹射物伤害、一次性受到5滴血伤害、造成伤害 |
+| 饥饿/高度 (4) | 饱食度低于18、饱食度高于18、玩家高度Y＞70、玩家高度Y＜70 |
+| 攻击类 (2) | 攻击玩家、空手打人 |
+| 距离类 (2) | 距离所有玩家15米、和玩家贴贴 |
+| 经验/等级 (2) | 获得经验、升级 |
+| 穿戴装备 (1) | 穿装备 |
+| 手持物品 (8) | 手持工作台、熔炉、木/铁/石镐、木/石/铁斧 |
+| 快捷栏 (2) | 选中快捷栏第一位、选中快捷栏最后一位 |
+| 下落高度 (1) | 下降5格高度 |
+| 副手/容器/计数 (17) | 副手持盾、打开箱子/熔炉/工作台、杀死铁傀儡、村民交易、放置/丢弃30个方块、30秒/60秒不跳/不潜行/不疾跑 |
+| 放置方块 (10) | 放置泥土、圆石、深板岩圆石、安山岩、花岗岩、闪长岩、凝灰岩、工作台、熔炉、箱子 |
+| 丢弃特定物品 (8) | 丢弃泥土、圆石、深板岩圆石、安山岩、花岗岩、闪长岩、凝灰岩、木镐 |
+| 头顶方块 (2) | 头顶有方块遮挡、头顶无方块遮挡 |
+| 桶操作 (4) | 用桶装水、用桶倒水、用桶装岩浆、用桶倒岩浆 |
 
 ---
 
@@ -89,6 +95,8 @@
 | `/dontdoit vote <玩家> true` | 判定该玩家猜测词条→猜对（加心 + 换词条） |
 | `/dontdoit vote <玩家> false` | 判定该玩家猜测词条→猜错（扣心 + 换词条） |
 | `/dontdoit skip <玩家>` | 跳过该玩家当前词条（不扣心） |
+| `/dontdoit setword <玩家> <词条>` | 为玩家设置指定词条（测试用） |
+| `/dontdoit triggerspecialevent <事件名>` | 手动触发指定特殊事件（测试用） |
 
 ---
 
@@ -137,36 +145,42 @@ Configurable via the Game Book:
 
 | Setting | Options |
 |---------|---------|
-| Word Change Timer | 60s / 120s / 180s |
-| Special Event Timer | 60s / 180s / 300s / 420s |
+| Word Change Timer | 60s / 120s / 180s / 300s |
+| Special Event Timer | Off / 60s / 180s / 300s / 420s |
+| Max Hearts | 3 / 5 / 10 / 15 / 30 |
 
 ---
 
-## 🎯 Trigger Types (71 Word Entries, 18 Trigger Categories)
+## 🎯 Trigger Types (171 Word Entries, 26 Trigger Categories)
 
-| Word Examples | Trigger Behavior |
-|---------------|-----------------|
-| Sneak | Press the sneak key (Shift) |
-| Attack Mobs / Attack Hostile | Attack any creature / Attack hostile mobs |
-| Break Block / Mine Ore | Destroy any block / Mine ore-type blocks |
-| Mine Andesite / Diorite / Deepslate | Break the corresponding block |
-| Place Block / Build Blocks | Place any block |
-| Send Chat / Type in Chat | Send a message in chat |
-| Take Damage | Take damage from any source |
-| Eat Food | Eat something |
-| Sprint | Press the sprint key |
-| Drop Item | Drop an item from inventory |
-| Open Container | Open chests, furnaces, etc. |
-| Pickup Item | Pick up items from the ground |
-| Pickup Log / Pickup Diamond | Pick up specific items |
-| Mine Wood / Stone / Coal / Iron / Copper / Gold / Diamond Ore | Break the corresponding block |
-| Craft Crafting Table / Wooden/Stone/Iron Pickaxe / Axe / Sword | Craft the corresponding item |
-| Look Down / Look Up / Look East/South/West/North | View direction change |
-| Stand Still 5s / Look Same Direction 5s | Sustained behavior detection |
-| Enclosed (1x2) / Submerged / Floating | Environmental state detection |
-| Stand on Grass/Leaves/Stone/Deepslate/Andesite/Diorite | Standing block detection |
-| Death / Respawn / No Respawn 3s/5s/10s | Death and respawn events |
-| Has XX in Inventory (Coal/Iron/Copper/Crafting Table/Furnace/Axe/Sword/Pickaxes/Rotten Flesh/Diamond/Dirt) | Inventory existence check |
+| Category | Word Examples |
+|----------|--------------|
+| Basic Actions (15) | Sneak, Attack, Attack Hostile, Break Block, Mine Ore, Place Block, Send Chat, Take Damage, Eat, Sprint, Drop Item, Open Container, Pickup Item |
+| Mining Ores (7) | Mine Wood, Stone, Coal, Iron, Copper, Gold, Diamond Ore |
+| Mining Detailed (7) | Mine Andesite, Diorite, Deepslate, Granite, Tuff, Crafting Table, Furnace |
+| Pickups (2) | Pickup Log, Pickup Diamond |
+| Crafting (10) | Craft Crafting Table, Wooden/Stone/Iron Pickaxe/Axe/Sword |
+| View Direction (6) | Look Down, Look Up, Look East/South/West/North |
+| Sustained Actions (5) | Stand Still 5s, Look Same Dir 5s, Sprint 30s, Sneak 5s, Jump 10 Times |
+| Environmental (3) | Enclosed (1×2), Submerged, Floating |
+| Standing On (9) | Stand on Grass/Leaves/Stone/Deepslate/Andesite/Diorite/Granite/Tuff/Bedrock |
+| Death/Respawn (10) | Death, Respawn, No Respawn 3s/5s/10s, Death by Fall/Lava/Suffocation/Drown/Explosion |
+| Inventory Items (34) | Has Coal/Iron/Copper/Crafting Table/Furnace/Axe/Sword/Pickaxes/Rotten Flesh/Diamond/Dirt/Polished Stones/Tuff/Stone/Leaves/Bone/String/Ender Pearl/Leather/Wool/Bucket/Water Bucket/Lava Bucket; No Iron Tools/Armor, No Diamond Tools/Armor |
+| Food/Instant (3) | Eat Rotten Flesh, Instant Lose Heart, Instant Gain Heart |
+| Damage Types (4) | Take Fire Damage, Projectile Damage, 5-Damage at Once, Deal Damage |
+| Hunger/Height (4) | Hunger Below 18, Hunger Above 18, Y > 70, Y < 70 |
+| Attack Types (2) | Attack Player, Empty Hand Attack |
+| Distance (2) | 15m Away from All, Too Close to Player |
+| XP/Level (2) | Gain XP, Level Up |
+| Armor (1) | Wear Armor |
+| Holding Items (8) | Hold Crafting Table, Furnace, Wooden/Iron/Stone Pickaxe, Wooden/Stone/Iron Axe |
+| Hotbar Slot (2) | Select First Slot, Select Last Slot |
+| Fall Height (1) | Fall 5 Blocks |
+| Offhand/Containers (17) | Hold Shield Offhand, Open Chest/Furnace/Crafting Table, Kill Iron Golem, Villager Trade, Place/Drop 30 Blocks, No Jump/Sneak/Sprint 30s/60s |
+| Place Blocks (10) | Place Dirt, Cobblestone, Cobbled Deepslate, Andesite, Granite, Diorite, Tuff, Crafting Table, Furnace, Chest |
+| Drop Specific (8) | Drop Dirt, Cobblestone, Cobbled Deepslate, Andesite, Granite, Diorite, Tuff, Wooden Pickaxe |
+| Block Above (2) | Block Above Head, No Block Above Head |
+| Bucket Ops (4) | Fill Bucket Water, Empty Bucket Water, Fill Bucket Lava, Empty Bucket Lava |
 
 ---
 
@@ -194,6 +208,8 @@ All commands start with `/dontdoit`:
 | `/dontdoit vote <player> true` | Judge player guess word → correct guess (+heart + new word) |
 | `/dontdoit vote <player> false` | Judge player guess word → wrong guess (-heart + new word) |
 | `/dontdoit skip <player>` | Skip the player's current word (no penalty) |
+| `/dontdoit setword <player> <word>` | Set a specific forbidden word for a player (testing) |
+| `/dontdoit triggerspecialevent <name>` | Manually trigger a special event (testing) |
 
 ---
 

@@ -30,7 +30,13 @@
 - **VillagerData** 构造函数参数必须为 `RegistryEntry<VillagerType>` + `RegistryEntry<VillagerProfession>`，不可直接传入 `RegistryKey`
 - **VillagerEntity** 创建方式改为 `EntityType.VILLAGER.create(world, SpawnReason.EVENT)`
 
-### 当前特殊事件总数：30 种 (其中交易商人为 1% 超级事件)
+### 5. 项目文档全面梳理
+- 整理完整指令清单：7 条管理指令（start/stop/status/vote/skip/setword/triggerspecialevent）
+- 梳理词条全览：171 个词条，26 个类别（基础行为/挖掘/合成/视角/环境/背包/放置/丢弃/死亡等）
+- 梳理特殊事件全览：30 个特殊事件（11 瞬时 + 19 持续）
+- 补充游戏设置、架构总览等项目介绍
+
+### 当前词条总数：171 种 | 指令：7 条 | 特殊事件：30 种
 
 ---
 
