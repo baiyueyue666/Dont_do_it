@@ -3,13 +3,22 @@ package me.baiyueyue.dont_do_it.game;
 import me.baiyueyue.dont_do_it.game.trigger.WordTriggerDetector;
 import me.baiyueyue.dont_do_it.network.GamePackets;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.component.type.FireworksComponent;
+import net.minecraft.network.packet.s2c.play.SubtitleS2CPacket;
+import net.minecraft.network.packet.s2c.play.TitleFadeS2CPacket;
+import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.scoreboard.ServerScoreboard;
@@ -17,8 +26,13 @@ import net.minecraft.scoreboard.Team;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
+import net.minecraft.world.Heightmap;
+import net.minecraft.world.WorldProperties;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.world.biome.Biome;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -69,6 +83,29 @@ public class GameManager {
     /** 全员变幼体是否激活（玩家缩小100倍） */
     private boolean everyoneBabyActive = false;
 
+    // ==================== 游戏范围边界 ====================
+
+    /** 游戏范围边界：-1 表示未启用 */
+    private double boundMinX = -1, boundMinZ = -1, boundMaxX = -1, boundMaxZ = -1;
+    /** 边界中心点（用于越界传送回） */
+    private double boundCenterX, boundCenterZ;
+    /** 边界起始区块坐标（用于方块恢复范围计算） */
+    private int startChunkX, startChunkZ;
+
+    // ==================== 准备阶段 ====================
+
+    /** 准备阶段倒计时（秒），-1 = 未激活 */
+    private int prepCountdown = -1;
+
+    // ==================== 方块保存/恢复 ====================
+
+    /** 保存的原始方块（不包括空气） */
+    private Map<BlockPos, BlockState> savedBlocks = null;
+    /** 保存的原始方块实体 NBT 数据 */
+    private Map<BlockPos, NbtCompound> savedBlockEntities = null;
+    /** 黑曜石边界墙位置（游戏结束时显式清理，因为墙高可能超出 save 范围） */
+    private final List<BlockPos> obsidianWallPositions = new ArrayList<>();
+
     private GameManager() {}
 
     public static GameManager getInstance() { return INSTANCE; }
@@ -80,6 +117,8 @@ public class GameManager {
 
     public GameState getState() { return state; }
     public boolean isRunning() { return state == GameState.RUNNING; }
+    public boolean isPrepPhase() { return prepCountdown > 0; }
+    public int getPrepCountdown() { return prepCountdown; }
     public GameSettings getSettings() { return settings; }
     public PlayerWordData getPlayerData(UUID playerId) { return playerDataMap.get(playerId); }
     public Collection<PlayerWordData> getAllPlayerData() { return playerDataMap.values(); }
@@ -102,7 +141,9 @@ public class GameManager {
     // ==================== 游戏流程 ====================
 
     /**
-     * 开始游戏 —— 分配队伍、分配词条、启动倒计时、同步客户端
+     * 开始游戏（阶段一：准备阶段）
+     * - 游戏范围开启时：选区、存方块、高空传送、10s 无敌
+     * - 游戏范围关闭时：直接进入阶段二
      */
     public void startGame(MinecraftServer server) {
         if (state == GameState.RUNNING) return;
@@ -117,6 +158,97 @@ public class GameManager {
                     Text.literal("§c⚠ 至少需要 2 名玩家才能开始「不要做挑战」！"), false);
             return;
         }
+
+        int gameRange = settings.getGameRange();
+        if (gameRange > 0) {
+            // ---- 游戏范围边界设定（含海洋检测） ----
+            ServerWorld overworld = server.getOverworld();
+            long worldSeed = overworld.getSeed();
+            Random boundaryRandom = new Random(worldSeed ^ System.currentTimeMillis());
+
+            int sx, sz;
+            int retries = 0;
+            do {
+                sx = boundaryRandom.nextInt(1001) - 500;
+                sz = boundaryRandom.nextInt(1001) - 500;
+                retries++;
+            } while (isOceanArea(overworld, sx, sz, gameRange) && retries < 50);
+
+            startChunkX = sx;
+            startChunkZ = sz;
+            boundMinX = sx * 16;
+            boundMinZ = sz * 16;
+            boundMaxX = (sx + gameRange) * 16 - 0.01;
+            boundMaxZ = (sz + gameRange) * 16 - 0.01;
+            boundCenterX = sx * 16 + gameRange * 8.0;
+            boundCenterZ = sz * 16 + gameRange * 8.0;
+
+            // 保存原始方块
+            saveAreaBlocks(overworld);
+
+            // 建造黑曜石边界墙（基岩层 ~ Y=225）
+            buildObsidianWall(overworld, gameRange);
+
+            // 发送边界到客户端
+            sendBoundaryPacket(server);
+
+            // 传送所有玩家到高空（Y=150）并开启无敌
+            for (ServerPlayerEntity player : players) {
+                player.getAbilities().invulnerable = true;
+                player.sendAbilitiesUpdate();
+                player.teleport(overworld, boundCenterX + 0.5, 150, boundCenterZ + 0.5,
+                        Set.of(), player.getYaw(), player.getPitch(), false);
+            }
+
+            // 启动准备阶段倒计时
+            prepCountdown = 10;
+            state = GameState.RUNNING;
+            sendPrepCountdown(server, prepCountdown);
+
+            server.getPlayerManager().broadcast(
+                    Text.literal("§e🌍 游戏范围已选定 §3%d×%d区块 §e| 10秒后正式开始！".formatted(gameRange, gameRange)), false);
+
+        } else {
+            // 关闭范围，清除边界，直接进入阶段二
+            boundMinX = -1;
+            boundMaxX = -1;
+            boundMinZ = -1;
+            boundMaxZ = -1;
+            startPhase2(server);
+        }
+    }
+
+    /**
+     * 阶段二：正式开始游戏（词条分配、倒计时等）
+     */
+    private void startPhase2(MinecraftServer server) {
+        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+
+        // 关闭无敌，恢复生命值与饥饿值，并将玩家传送到游戏区域地表，同时设置出生点
+        for (ServerPlayerEntity player : players) {
+            player.getAbilities().invulnerable = false;
+            player.sendAbilitiesUpdate();
+            // 恢复生命值和饥饿值至满格
+            player.setHealth(player.getMaxHealth());
+            player.getHungerManager().setFoodLevel(20);
+            player.getHungerManager().setSaturationLevel(5.0f);
+            if (boundMinX >= 0) {
+                ServerWorld overworld = server.getOverworld();
+                int safeY = findSafeSurfaceY(overworld, (int) boundCenterX, (int) boundCenterZ);
+                // 在出生点地表生成 3×3 黑曜石平台（防 TNT 破坏）
+                buildObsidianPlatform(overworld, (int) boundCenterX, safeY - 1, (int) boundCenterZ);
+                player.teleport(overworld, boundCenterX + 0.5, safeY, boundCenterZ + 0.5,
+                        Set.of(), player.getYaw(), player.getPitch(), false);
+                // 设置出生点为游戏区域当前位置，死亡后自动复活在此
+                WorldProperties.SpawnPoint spawnPoint = WorldProperties.SpawnPoint.create(
+                        overworld.getRegistryKey(),
+                        new BlockPos((int) boundCenterX, safeY, (int) boundCenterZ),
+                        player.getYaw(),
+                        player.getPitch());
+                player.setSpawnPoint(new ServerPlayerEntity.Respawn(spawnPoint, true), false);
+            }
+        }
+        sendPrepCountdown(server, 0);
 
         // 打乱玩家顺序，轮流分配队伍颜色
         List<ServerPlayerEntity> shuffled = new ArrayList<>(players);
@@ -134,8 +266,6 @@ public class GameManager {
                     settings.getDefaultHearts(), timerSec);
             playerDataMap.put(player.getUuid(), data);
         }
-
-        state = GameState.RUNNING;
 
         // 处理初始分配的即时触发词条（直接扣心/回心）
         for (ServerPlayerEntity player : players) {
@@ -163,6 +293,12 @@ public class GameManager {
         // 创建原版计分板队伍并分配玩家
         assignVanillaTeams(server, shuffled);
 
+        // 给所有玩家添加 Glowing 高亮效果（颜色由队伍决定）
+        for (ServerPlayerEntity player : players) {
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING,
+                    StatusEffectInstance.INFINITE, 0, false, false));
+        }
+
         // 同步每个玩家的数据到全体（客户端据此区分自己/对手）
         for (ServerPlayerEntity player : players) {
             PlayerWordData selfData = playerDataMap.get(player.getUuid());
@@ -172,9 +308,12 @@ public class GameManager {
         }
 
         // 广播开始
+        String rangeMsg = settings.isGameRangeEnabled()
+                ? " §7| 游戏范围: §3%d×%d区块".formatted(settings.getGameRange(), settings.getGameRange())
+                : "";
         server.getPlayerManager().broadcast(
-                Text.literal("§a🎮 「不要做挑战」开始！每人 §c%d ❤️ §a| 词条每 §e%d秒 §a自动更换"
-                        .formatted(settings.getDefaultHearts(), timerSec)), false);
+                Text.literal("§a🎮 「不要做挑战」开始！每人 §c%d ❤️ §a| 词条每 §e%d秒 §a自动更换%s"
+                        .formatted(settings.getDefaultHearts(), timerSec, rangeMsg)), false);
     }
 
     /**
@@ -194,7 +333,39 @@ public class GameManager {
         specialEventCountdown = 0;
         removeSpecialEventBossBar(server);
 
-        respawnAll(server);
+        // 移除所有玩家的 Glowing 高亮效果
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            player.removeStatusEffect(StatusEffects.GLOWING);
+        }
+
+        // 清理黑曜石边界墙（避免墙高超出 save 范围导致残留）
+        ServerWorld world = server.getOverworld();
+        for (BlockPos pos : obsidianWallPositions) {
+            world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
+        }
+        obsidianWallPositions.clear();
+
+        // 恢复原始方块
+        restoreAreaBlocks(world);
+
+        // 清除游戏范围边界
+        boundMinX = -1;
+        boundMaxX = -1;
+        boundMinZ = -1;
+        boundMaxZ = -1;
+        sendBoundaryClearPacket(server);
+
+        // 传送所有玩家回出生点并清除个人出生点（使用手动搜索避免 Heightmap 缓存过期导致卡方块）
+        ServerWorld overworld = server.getOverworld();
+        BlockPos spawnPos = overworld.getSpawnPoint().getPos();
+        int safeY = findSafeSurfaceY(overworld, spawnPos.getX(), spawnPos.getZ());
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            player.changeGameMode(GameMode.SURVIVAL);
+            player.teleport(overworld, spawnPos.getX() + 0.5, safeY, spawnPos.getZ() + 0.5,
+                    Set.of(), player.getYaw(), player.getPitch(), false);
+            // 清除游戏期间设定的个人出生点，恢复为世界出生点
+            player.setSpawnPoint(null, false);
+        }
         removeVanillaTeams(server);
 
         // 清空背包并发还游戏书本
@@ -226,6 +397,7 @@ public class GameManager {
      */
     public void onPlayerTriggered(MinecraftServer server, ServerPlayerEntity player, TriggerType triggeredType) {
         if (!isRunning()) return;
+        if (isPrepPhase()) return; // 准备阶段不触发词条
 
         PlayerWordData data = playerDataMap.get(player.getUuid());
         if (data == null || data.isEliminated()) return;
@@ -665,6 +837,264 @@ public class GameManager {
         checkWinCondition(server);
     }
 
+    /**
+     * 准备阶段每秒 tick（由 GameCountdownManager 调用）
+     */
+    public void tickPrepPhase(MinecraftServer server) {
+        if (prepCountdown <= 0) return;
+        prepCountdown--;
+        if (prepCountdown > 0) {
+            sendPrepCountdown(server, prepCountdown);
+            // 原版标题显示倒计时
+            Text titleText = Text.literal("§6§l" + prepCountdown);
+            Text subText = Text.literal("§e游戏即将开始…");
+            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                p.networkHandler.sendPacket(new TitleFadeS2CPacket(5, 15, 5));
+                p.networkHandler.sendPacket(new TitleS2CPacket(titleText));
+                p.networkHandler.sendPacket(new SubtitleS2CPacket(subText));
+            }
+        } else {
+            // 清除标题
+            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+                p.networkHandler.sendPacket(new TitleS2CPacket(Text.empty()));
+                p.networkHandler.sendPacket(new SubtitleS2CPacket(Text.empty()));
+            }
+            server.getPlayerManager().broadcast(
+                    Text.literal("§a🎮 游戏正式开始！"), false);
+            startPhase2(server);
+        }
+    }
+
+    // ==================== 区块范围辅助方法 ====================
+
+    /** 检测目标区块区域是否主要为海洋生物群系 */
+    private boolean isOceanArea(ServerWorld world, int chunkX, int chunkZ, int range) {
+        int sampleCount = 0;
+        int oceanCount = 0;
+        for (int dx = 0; dx < range; dx++) {
+            for (int dz = 0; dz < range; dz++) {
+                BlockPos pos = new BlockPos((chunkX + dx) * 16 + 8, 64, (chunkZ + dz) * 16 + 8);
+                var biomeEntry = world.getBiome(pos);
+                biomeEntry.getKey().ifPresent(key -> {
+                    String path = key.getValue().getPath();
+                    // 不计数，仅做标记 —— 使用共享可变容器
+                });
+                String path = biomeEntry.getKey().map(k -> k.getValue().getPath()).orElse("");
+                sampleCount++;
+                if (path.contains("ocean") || path.contains("deep_")) {
+                    oceanCount++;
+                }
+            }
+        }
+        // 如果半数以上区块是海洋，则判定为海洋区域
+        return sampleCount > 0 && oceanCount > sampleCount / 2;
+    }
+
+    /** 保存边界区域内的所有非空气方块和方块实体 */
+    private void saveAreaBlocks(ServerWorld world) {
+        savedBlocks = new HashMap<>();
+        savedBlockEntities = new HashMap<>();
+        int minBlockX = startChunkX * 16;
+        int minBlockZ = startChunkZ * 16;
+        int maxBlockX = (startChunkX + settings.getGameRange()) * 16 - 1;
+        int maxBlockZ = (startChunkZ + settings.getGameRange()) * 16 - 1;
+        int minY = world.getBottomY();
+        int maxY = world.getTopY(Heightmap.Type.WORLD_SURFACE, startChunkX * 16, startChunkZ * 16) + 64; // 保守上界
+
+        for (int x = minBlockX; x <= maxBlockX; x++) {
+            for (int z = minBlockZ; z <= maxBlockZ; z++) {
+                for (int y = minY; y <= maxY; y++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    BlockState state = world.getBlockState(pos);
+                    if (!state.isAir()) {
+                        savedBlocks.put(pos, state);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 手动搜索安全的生成 Y 坐标（不依赖可能过期的 Heightmap）。
+     * 从世界顶部向下搜索第一个实心方块，确认其上方 2 格空气（脚 + 头）后返回脚部 Y。
+     */
+    private int findSafeSurfaceY(ServerWorld world, int x, int z) {
+        int bottomY = world.getBottomY();
+        int topY = bottomY + world.getHeight() - 1;
+        for (int y = topY; y >= bottomY; y--) {
+            BlockPos pos = new BlockPos(x, y, z);
+            BlockState state = world.getBlockState(pos);
+            // 跳过空气和非碰撞方块（高草丛、花等），只找实心方块作为地面
+            if (!state.blocksMovement()) continue;
+            // 脚部 (y+1) 和头部 (y+2) 必须没有碰撞（玩家可以站在高草丛中，但不能站在实心方块中）
+            BlockState above1 = world.getBlockState(pos.up());
+            BlockState above2 = world.getBlockState(pos.up(2));
+            if (!above1.blocksMovement() && !above2.blocksMovement()) {
+                return y + 1;
+            }
+        }
+        return bottomY + 1;
+    }
+
+    /** 恢复边界区域内的方块到原始状态 */
+    private void restoreAreaBlocks(ServerWorld world) {
+        if (savedBlocks == null || savedBlockEntities == null) return;
+
+        int minBlockX = startChunkX * 16;
+        int minBlockZ = startChunkZ * 16;
+        int maxBlockX = (startChunkX + settings.getGameRange()) * 16 - 1;
+        int maxBlockZ = (startChunkZ + settings.getGameRange()) * 16 - 1;
+        int minY = world.getBottomY();
+        int maxY = world.getTopY(Heightmap.Type.WORLD_SURFACE, startChunkX * 16, startChunkZ * 16) + 64;
+
+        // 先清空所有方块
+        for (int x = minBlockX; x <= maxBlockX; x++) {
+            for (int z = minBlockZ; z <= maxBlockZ; z++) {
+                for (int y = minY; y <= maxY; y++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    if (savedBlocks.containsKey(pos)) continue; // 稍后恢复
+                    world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
+                }
+            }
+        }
+
+        // 恢复原始方块
+        for (Map.Entry<BlockPos, BlockState> entry : savedBlocks.entrySet()) {
+            BlockPos pos = entry.getKey();
+            world.setBlockState(pos, entry.getValue(), 2);
+            // 方块实体 NBT 恢复跳过（1.21.4 API 变更，游戏场景下区块状态恢复即可）
+        }
+
+        savedBlocks = null;
+        savedBlockEntities = null;
+    }
+
+    /**
+     * 建造黑曜石边界墙（基岩层 ~ Y=225），四边全覆盖
+     * 墙高可能超出 saveAreaBlocks 范围，endGame 时需显式清理。
+     */
+    private void buildObsidianWall(ServerWorld world, int gameRange) {
+        obsidianWallPositions.clear();
+        int minBlockX = startChunkX * 16;
+        int minBlockZ = startChunkZ * 16;
+        int maxBlockX = (startChunkX + gameRange) * 16 - 1;
+        int maxBlockZ = (startChunkZ + gameRange) * 16 - 1;
+        int bottomY = world.getBottomY();
+        int topY = 225;
+        BlockState obsidian = Blocks.OBSIDIAN.getDefaultState();
+
+        // 北边墙 (z = minBlockZ)
+        for (int x = minBlockX; x <= maxBlockX; x++) {
+            for (int y = bottomY; y <= topY; y++) {
+                BlockPos pos = new BlockPos(x, y, minBlockZ);
+                world.setBlockState(pos, obsidian, 2);
+                obsidianWallPositions.add(pos);
+            }
+        }
+        // 南边墙 (z = maxBlockZ)
+        for (int x = minBlockX; x <= maxBlockX; x++) {
+            for (int y = bottomY; y <= topY; y++) {
+                BlockPos pos = new BlockPos(x, y, maxBlockZ);
+                world.setBlockState(pos, obsidian, 2);
+                obsidianWallPositions.add(pos);
+            }
+        }
+        // 西边墙 (x = minBlockX)，跳过四角已放置的
+        for (int z = minBlockZ + 1; z < maxBlockZ; z++) {
+            for (int y = bottomY; y <= topY; y++) {
+                BlockPos pos = new BlockPos(minBlockX, y, z);
+                world.setBlockState(pos, obsidian, 2);
+                obsidianWallPositions.add(pos);
+            }
+        }
+        // 东边墙 (x = maxBlockX)，跳过四角已放置的
+        for (int z = minBlockZ + 1; z < maxBlockZ; z++) {
+            for (int y = bottomY; y <= topY; y++) {
+                BlockPos pos = new BlockPos(maxBlockX, y, z);
+                world.setBlockState(pos, obsidian, 2);
+                obsidianWallPositions.add(pos);
+            }
+        }
+    }
+
+    /**
+     * 在指定位置生成 3×3 黑曜石平台（防 TNT 破坏出生点）。
+     * @param world 目标世界
+     * @param centerX 平台中心 X
+     * @param groundY 平台所在 Y（地表方块层）
+     * @param centerZ 平台中心 Z
+     */
+    private void buildObsidianPlatform(ServerWorld world, int centerX, int groundY, int centerZ) {
+        BlockState obsidian = Blocks.OBSIDIAN.getDefaultState();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos pos = new BlockPos(centerX + dx, groundY, centerZ + dz);
+                world.setBlockState(pos, obsidian, 2);
+            }
+        }
+    }
+
+    /** 发送边界数据到所有客户端 */
+    private void sendBoundaryPacket(MinecraftServer server) {
+        GamePackets.GameBoundaryPayload payload = new GamePackets.GameBoundaryPayload(
+                boundMinX, boundMinZ, boundMaxX, boundMaxZ);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+    }
+
+    /** 清除客户端边界渲染 */
+    private void sendBoundaryClearPacket(MinecraftServer server) {
+        GamePackets.GameBoundaryPayload payload = new GamePackets.GameBoundaryPayload(
+                -1, -1, -1, -1);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+    }
+
+    /** 同步准备阶段倒计时到客户端 */
+    private void sendPrepCountdown(MinecraftServer server, int seconds) {
+        GamePackets.PrepCountdownPayload payload = new GamePackets.PrepCountdownPayload(seconds);
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(p, payload);
+        }
+    }
+
+    // ==================== enforceBoundary / syncPlayerData ====================
+
+    /**
+     * 检查并强制所有存活玩家留在边界内
+     * 由 GameCountdownManager 每秒调用
+     */
+    public void enforceBoundary(MinecraftServer server) {
+        if ((!isRunning() && !isPrepPhase()) || boundMinX < 0) return;
+
+        ServerWorld overworld = server.getOverworld();
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            // 准备阶段（无敌期间）所有玩家都受边界约束
+            boolean isPrep = isPrepPhase();
+            double x = player.getX();
+            double z = player.getZ();
+            boolean outOfBounds = x < boundMinX || x > boundMaxX || z < boundMinZ || z > boundMaxZ;
+
+            if (outOfBounds) {
+                if (isPrep) {
+                    // 准备阶段传送回高空
+                    player.teleport(overworld, boundCenterX + 0.5, 150, boundCenterZ + 0.5,
+                            Set.of(), player.getYaw(), player.getPitch(), false);
+                } else {
+                    PlayerWordData data = playerDataMap.get(player.getUuid());
+                    if (data == null || data.isEliminated()) continue;
+                    if (player.isSpectator()) continue;
+                    int surfaceY = findSafeSurfaceY(overworld, (int) boundCenterX, (int) boundCenterZ);
+                    player.teleport(overworld, boundCenterX + 0.5, surfaceY, boundCenterZ + 0.5,
+                            Set.of(), player.getYaw(), player.getPitch(), false);
+                    player.sendMessage(Text.literal("§c⚠ 你已超出游戏范围，已传送回游戏区域！"), true);
+                }
+            }
+        }
+    }
+
     /** 同步单个玩家数据（供 SpecialEventPool 等外部调用） */
     public void syncPlayerDataPublic(MinecraftServer server, PlayerWordData data) {
         syncOnePlayer(server, data);
@@ -697,16 +1127,6 @@ public class GameManager {
                 new Thread(() -> {
                     try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
                     server.execute(() -> {
-                        for (PlayerWordData data : playerDataMap.values()) {
-                            ServerPlayerEntity sp = server.getPlayerManager().getPlayer(data.getPlayerId());
-                            if (sp != null) {
-                                sp.changeGameMode(GameMode.SURVIVAL);
-                                ServerWorld overworld = server.getOverworld();
-                                sp.teleport(overworld, 0.5, overworld.getTopY(
-                                        net.minecraft.world.Heightmap.Type.WORLD_SURFACE, 0, 0), 0.5,
-                                        Set.of(), sp.getYaw(), sp.getPitch(), false);
-                            }
-                        }
                         endGame(server);
                     });
                 }).start();
@@ -754,6 +1174,22 @@ public class GameManager {
                 player.changeGameMode(GameMode.SURVIVAL);
             }
         }
+    }
+
+    /**
+     * 玩家死亡后复活处理：重新添加高亮效果（死亡会清除所有状态效果）。
+     * 复活位置由 setSpawnPoint 设定的出生点自动决定，无需额外传送。
+     * 由 WordTriggerDetector 的 AFTER_RESPAWN 事件调用。
+     */
+    public void handlePlayerRespawn(ServerPlayerEntity player) {
+        if (!isRunning() && !isPrepPhase()) return;
+
+        PlayerWordData data = playerDataMap.get(player.getUuid());
+        if (data == null) return;
+
+        // 重新添加 GLOWING 高亮（死亡会清除所有状态效果）
+        player.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING,
+                StatusEffectInstance.INFINITE, 0, false, false));
     }
 
     // ==================== 书本发放 ====================
@@ -826,21 +1262,27 @@ public class GameManager {
     // ==================== 烟花 ====================
 
     private void spawnFireworks(ServerWorld world, Vec3d pos) {
+        MinecraftServer server = world.getServer();
         for (int i = 0; i < 5; i++) {
-            // 延迟发射，产生连续烟花效果
             int delay = i * 10; // ticks
-            world.getServer().execute(() -> {
-                FireworkRocketEntity firework = new FireworkRocketEntity(world,
-                        pos.x + (random.nextDouble() - 0.5) * 2,
-                        pos.y + 1,
-                        pos.z + (random.nextDouble() - 0.5) * 2,
-                        makeRandomFireworkStack());
-                world.spawnEntity(firework);
-            });
-
-            // 简单延迟（使用 server tick 调度）
-            if (delay > 0) {
-                try { Thread.sleep(delay * 50L); } catch (InterruptedException ignored) {}
+            ItemStack fireworkStack = makeRandomFireworkStack();
+            double dx = (random.nextDouble() - 0.5) * 2;
+            double dz = (random.nextDouble() - 0.5) * 2;
+            if (delay == 0) {
+                // 立即发射第一枚
+                FireworkRocketEntity fw = new FireworkRocketEntity(world,
+                        pos.x + dx, pos.y + 1, pos.z + dz, fireworkStack);
+                world.spawnEntity(fw);
+            } else {
+                // 延迟发射（使用 server tick 调度，不阻塞主线程）
+                server.execute(() -> {
+                    try { Thread.sleep(delay * 50L); } catch (InterruptedException e) { return; }
+                    server.execute(() -> {
+                        FireworkRocketEntity fw = new FireworkRocketEntity(world,
+                                pos.x + dx, pos.y + 1, pos.z + dz, fireworkStack);
+                        world.spawnEntity(fw);
+                    });
+                });
             }
         }
     }

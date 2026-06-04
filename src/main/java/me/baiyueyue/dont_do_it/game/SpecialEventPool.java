@@ -265,7 +265,7 @@ public class SpecialEventPool {
             case ANVIL_STORM -> tickAnvilStorm(server);
             case CAVE_IN -> tickCaveIn(server);
             case FIRE_TRAIL -> tickFireTrail(server);
-            case CAGE_TRIAL -> tickCageTrial(server);
+            case CAGE_TRIAL -> tickCageTrial(server, remainingSeconds);
             case SKY_WATER_CHALLENGE -> tickSkyWaterChallenge(server);
             case CROP_SPEED_GROW -> tickCropSpeedGrow(server);
             case HUNGER_DISEASE -> tickHungerDisease(server);
@@ -769,38 +769,40 @@ public class SpecialEventPool {
             }
         }
 
-        if (alivePlayers.size() < 2) {
+        int count = alivePlayers.size();
+        if (count < 2) {
             server.getPlayerManager().broadcast(
                     Text.literal("§d🔄 特殊事件「玩家互换位置」已触发！但存活玩家不足2人，无事发生。"), false);
             return 0;
         }
 
-        // 收集所有位置
-        List<Vec3d> positions = new ArrayList<>();
-        List<Float> yaws = new ArrayList<>();
-        List<Float> pitches = new ArrayList<>();
-        for (ServerPlayerEntity p : alivePlayers) {
-            positions.add(new Vec3d(p.getX(), p.getY(), p.getZ()));
-            yaws.add(p.getYaw());
-            pitches.add(p.getPitch());
+        // 收集所有位置和视角
+        double[][] pos = new double[count][3];
+        float[] yawArr = new float[count];
+        float[] pitchArr = new float[count];
+        for (int i = 0; i < count; i++) {
+            ServerPlayerEntity p = alivePlayers.get(i);
+            pos[i][0] = p.getX();
+            pos[i][1] = p.getY();
+            pos[i][2] = p.getZ();
+            yawArr[i] = p.getYaw();
+            pitchArr[i] = p.getPitch();
         }
 
-        // 随机打乱位置
-        Collections.shuffle(positions, random);
-
-        // 交换位置
-        for (int i = 0; i < alivePlayers.size(); i++) {
+        // 循环右移一位：每人一定换到另一个玩家的位置
+        for (int i = 0; i < count; i++) {
+            int srcIdx = (i + count - 1) % count; // 前一个人的位置
             ServerPlayerEntity player = alivePlayers.get(i);
-            Vec3d newPos = positions.get(i);
-            player.teleport((ServerWorld) player.getEntityWorld(),
-                    newPos.x, newPos.y, newPos.z,
-                    Set.of(), yaws.get(i), pitches.get(i), false);
+            // 使用 requestTeleport 确保可靠传送（vanilla /tp 底层 API）
+            player.requestTeleport(pos[srcIdx][0], pos[srcIdx][1], pos[srcIdx][2]);
+            player.setYaw(yawArr[i]);
+            player.setPitch(pitchArr[i]);
             player.sendMessage(Text.literal("§d🔄 你被传送到了另一个玩家的位置！"), true);
         }
 
         server.getPlayerManager().broadcast(
-                Text.literal("§d🔄 特殊事件「玩家互换位置」已触发！§e" + alivePlayers.size()
-                        + "名 §f玩家位置已被随机交换！"), false);
+                Text.literal("§d🔄 特殊事件「玩家互换位置」已触发！§e" + count
+                        + "名 §f玩家位置已被交换！"), false);
         return 0;
     }
 
@@ -862,9 +864,10 @@ public class SpecialEventPool {
         return SpecialEventType.CAGE_TRIAL.getDurationSeconds();
     }
 
-    private void tickCageTrial(MinecraftServer server) {
+    private void tickCageTrial(MinecraftServer server, int remainingSeconds) {
+        // 事件总长 10s，剩余 5s 时（已过 5s）才生成苦力怕
+        if (remainingSeconds != 5) return;
         GameManager gm = GameManager.getInstance();
-        // 当剩余 5 秒时（事件已运行 5 秒），生成苦力怕
         for (var entry : new HashMap<>(cageCreeperSpawns).entrySet()) {
             UUID playerId = entry.getKey();
             BlockPos spawnPos = entry.getValue();

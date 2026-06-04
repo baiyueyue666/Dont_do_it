@@ -13,18 +13,20 @@ import net.minecraft.text.Text;
  */
 public class SettingsScreen extends Screen {
 
-    public enum Mode { WORD_TIMER, SPECIAL_EVENT_TIMER, HEARTS }
+    public enum Mode { WORD_TIMER, SPECIAL_EVENT_TIMER, HEARTS, GAME_RANGE }
 
     private final Mode mode;
     private int selectedWordTimer;
     private int selectedSpecialEventTimer;
     private int selectedHearts;
+    private int selectedGameRange;
 
     public SettingsScreen(Text title, int wordTimer, int specialEventTimer, Mode mode) {
         super(title);
         this.selectedWordTimer = wordTimer;
         this.selectedSpecialEventTimer = specialEventTimer;
         this.selectedHearts = 15;
+        this.selectedGameRange = GameSettings.DEFAULT_GAME_RANGE;
         this.mode = mode;
     }
 
@@ -33,6 +35,16 @@ public class SettingsScreen extends Screen {
         this.selectedWordTimer = wordTimer;
         this.selectedSpecialEventTimer = specialEventTimer;
         this.selectedHearts = hearts;
+        this.selectedGameRange = GameSettings.DEFAULT_GAME_RANGE;
+        this.mode = mode;
+    }
+
+    public SettingsScreen(Text title, int wordTimer, int specialEventTimer, int hearts, int gameRange, Mode mode) {
+        super(title);
+        this.selectedWordTimer = wordTimer;
+        this.selectedSpecialEventTimer = specialEventTimer;
+        this.selectedHearts = hearts;
+        this.selectedGameRange = gameRange;
         this.mode = mode;
     }
 
@@ -65,7 +77,7 @@ public class SettingsScreen extends Screen {
                         .build());
             }
             y += GameSettings.SPECIAL_EVENT_TIMER_OPTIONS.length * 22 + 10;
-        } else {
+        } else if (mode == Mode.HEARTS) {
             // ---- 血量上限 ----
             for (int i = 0; i < GameSettings.HEART_OPTIONS.length; i++) {
                 int h = GameSettings.HEART_OPTIONS[i];
@@ -76,6 +88,18 @@ public class SettingsScreen extends Screen {
                         .build());
             }
             y += GameSettings.HEART_OPTIONS.length * 22 + 10;
+        } else {
+            // ---- 游戏范围 ----
+            for (int i = 0; i < GameSettings.GAME_RANGE_OPTIONS.length; i++) {
+                int range = GameSettings.GAME_RANGE_OPTIONS[i];
+                String label = range == 0 ? "§c关闭" : ("§3" + range + "×" + range + " 区块");
+                this.addDrawableChild(ButtonWidget.builder(
+                        Text.literal(label + (selectedGameRange == range ? " §a✔" : "")),
+                        btn -> selectGameRange(range))
+                        .dimensions(centerX - 100, y + i * 22, 200, 20)
+                        .build());
+            }
+            y += GameSettings.GAME_RANGE_OPTIONS.length * 22 + 10;
         }
 
         // 返回（携带当前设置值回到大厅）
@@ -85,7 +109,7 @@ public class SettingsScreen extends Screen {
                     if (this.client != null) {
                         this.client.setScreen(new GameBookScreen(
                                 Text.literal("§6不要做挑战"),
-                                selectedWordTimer, selectedSpecialEventTimer, selectedHearts));
+                                selectedWordTimer, selectedSpecialEventTimer, selectedHearts, selectedGameRange));
                     }
                 })
                 .dimensions(centerX - 100, y, 200, 20)
@@ -110,9 +134,15 @@ public class SettingsScreen extends Screen {
         rebuild();
     }
 
+    private void selectGameRange(int range) {
+        selectedGameRange = range;
+        sendSettings();
+        rebuild();
+    }
+
     private void sendSettings() {
         ClientPlayNetworking.send(new GamePackets.UpdateSettingsFullPayload(
-                selectedWordTimer, selectedSpecialEventTimer, selectedHearts));
+                selectedWordTimer, selectedSpecialEventTimer, selectedHearts, selectedGameRange));
     }
 
     private void rebuild() {
@@ -135,9 +165,12 @@ public class SettingsScreen extends Screen {
         } else if (mode == Mode.SPECIAL_EVENT_TIMER) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.literal("§7选择特殊事件触发倒计时"), centerX, y, 0xAAAAAA);
-        } else {
+        } else if (mode == Mode.HEARTS) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.literal("§7选择血量上限"), centerX, y, 0xAAAAAA);
+        } else {
+            context.drawCenteredTextWithShadow(this.textRenderer,
+                    Text.literal("§7选择游戏范围"), centerX, y, 0xAAAAAA);
         }
     }
 

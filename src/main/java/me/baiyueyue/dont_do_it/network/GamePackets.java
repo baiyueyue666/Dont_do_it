@@ -25,6 +25,8 @@ public class GamePackets {
     public static final Identifier UPDATE_SETTINGS_ID  = Identifier.of("dont_do_it", "update_settings");
     public static final Identifier STATE_RESET_ID      = Identifier.of("dont_do_it", "state_reset");
     public static final Identifier SPECIAL_EVENT_BOSSBAR_ID = Identifier.of("dont_do_it", "special_event_bossbar");
+    public static final Identifier GAME_BOUNDARY_ID     = Identifier.of("dont_do_it", "game_boundary");
+    public static final Identifier PREP_COUNTDOWN_ID    = Identifier.of("dont_do_it", "prep_countdown");
 
     // ==================== S2C: 全量同步对手词条 ====================
 
@@ -96,7 +98,7 @@ public class GamePackets {
 
     // ==================== C2S: 更新设置（含特殊事件） ====================
 
-    public record UpdateSettingsFullPayload(int wordTimerSeconds, int specialEventTimerSeconds, int defaultHearts) implements CustomPayload {
+    public record UpdateSettingsFullPayload(int wordTimerSeconds, int specialEventTimerSeconds, int defaultHearts, int gameRange) implements CustomPayload {
         public static final Id<UpdateSettingsFullPayload> ID = new Id<>(Identifier.of("dont_do_it", "update_settings_full"));
         @Override
         public Id<? extends CustomPayload> getId() { return ID; }
@@ -110,7 +112,21 @@ public class GamePackets {
         public Id<? extends CustomPayload> getId() { return ID; }
     }
 
-    // ==================== Codec 注册 ====================
+    // ==================== S2C: 游戏范围边界（用于客户端渲染区块边框） ====================
+
+    public record GameBoundaryPayload(double minX, double minZ, double maxX, double maxZ) implements CustomPayload {
+        public static final Id<GameBoundaryPayload> ID = new Id<>(GAME_BOUNDARY_ID);
+        @Override
+        public Id<? extends CustomPayload> getId() { return ID; }
+    }
+
+    // ==================== S2C: 准备阶段倒计时（10s 高空无敌） ====================
+
+    public record PrepCountdownPayload(int seconds) implements CustomPayload {
+        public static final Id<PrepCountdownPayload> ID = new Id<>(PREP_COUNTDOWN_ID);
+        @Override
+        public Id<? extends CustomPayload> getId() { return ID; }
+    }
 
     public static void register() {
         // ---- S2C ----
@@ -186,8 +202,8 @@ public class GamePackets {
 
         PayloadTypeRegistry.playC2S().register(UpdateSettingsFullPayload.ID,
                 PacketCodec.of(
-                        (payload, buf) -> { buf.writeInt(payload.wordTimerSeconds()); buf.writeInt(payload.specialEventTimerSeconds()); buf.writeInt(payload.defaultHearts()); },
-                        buf -> new UpdateSettingsFullPayload(buf.readInt(), buf.readInt(), buf.readInt())));
+                        (payload, buf) -> { buf.writeInt(payload.wordTimerSeconds()); buf.writeInt(payload.specialEventTimerSeconds()); buf.writeInt(payload.defaultHearts()); buf.writeInt(payload.gameRange()); },
+                        buf -> new UpdateSettingsFullPayload(buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt())));
 
         // ---- S2C: 特殊事件 BossBar ----
         PayloadTypeRegistry.playS2C().register(SpecialEventBossBarPayload.ID,
@@ -200,5 +216,22 @@ public class GamePackets {
                         },
                         buf -> new SpecialEventBossBarPayload(
                                 buf.readString(), buf.readFloat(), buf.readString(), buf.readInt())));
+        // ---- S2C: 游戏范围边界 ----
+        PayloadTypeRegistry.playS2C().register(GameBoundaryPayload.ID,
+                PacketCodec.of(
+                        (payload, buf) -> {
+                            buf.writeDouble(payload.minX());
+                            buf.writeDouble(payload.minZ());
+                            buf.writeDouble(payload.maxX());
+                            buf.writeDouble(payload.maxZ());
+                        },
+                        buf -> new GameBoundaryPayload(
+                                buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readDouble())));
+
+        // ---- S2C: 准备阶段倒计时 ----
+        PayloadTypeRegistry.playS2C().register(PrepCountdownPayload.ID,
+                PacketCodec.of(
+                        (payload, buf) -> buf.writeInt(payload.seconds()),
+                        buf -> new PrepCountdownPayload(buf.readInt())));
     }
 }

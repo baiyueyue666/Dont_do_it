@@ -1,5 +1,206 @@
 # 开发日志
 
+## 2026-06-04
+
+### 1. 默认值调整
+- 词条更换默认倒计时：60s → **180s**
+- 特殊事件触发默认倒计时：180s → **300s**
+- `GameSettings.DEFAULT_TIMER_SECONDS` 和 `DEFAULT_SPECIAL_EVENT_TIMER_SECONDS` 更新
+- `GameBookScreen` 默认值同步更新
+
+### 2. 新增游戏范围设置
+- **GameSettings.java** — 新增 `GAME_RANGE_OPTIONS = {0, 1, 2, 3}`，`DEFAULT_GAME_RANGE = 2`
+  - 0 = 关闭（无边界，玩家自由活动）
+  - 1 = 1×1 区块（16×16 格）
+  - 2 = 2×2 区块（32×32 格）
+  - 3 = 3×3 区块（48×48 格）
+- **GameManager.java** — 新增边界系统：
+  - 游戏开始时，基于「世界种子 XOR 当前毫秒时间戳」生成随机种子
+  - 从 ±500 区块（±8000 格）范围内随机选取起点区块
+  - 计算边界坐标（minX, maxX, minZ, maxZ），传送所有玩家到区域中心（地表高度）
+  - 游戏关闭时清除边界；结束广播中显示当前范围设置
+- **GameCountdownManager.java** — 每秒调用 `enforceBoundary()`：存活玩家越界 → 传送回区域中心 + 提示
+- **GameBookScreen.java** — 新增「🏠 游戏范围」按钮（第五个设置按钮）
+- **SettingsScreen.java** — 新增 `GAME_RANGE` 模式，渲染 4 个范围选项
+- **GamePackets.java** — `UpdateSettingsFullPayload` 新增 `gameRange` 字段 + codec
+- **GameBookItem.java / Dont_do_itClient.java** — `SettingsOpener` 接口新增 `gameRange` 参数
+- **Dont_do_it.java** — 网络接收器存储 `gameRange` 并播报
+
+### 设计思路
+采用「当前世界种子中随机选取区块」方案（而非开辟新维度/随机种子生成地形），原因：
+- 不同区块坐标自然产生完全不同的地形（山/海/森林/洞穴），保证每局随机性
+- 实现简洁，零额外性能开销
+- 玩家无需更换地图即可获得新鲜体验
+
+### 当前词条总数：171 种 | 指令：7 条 | 特殊事件：30 种 | 游戏范围：4 档
+
+### 3. 游戏范围增强：海洋避让 + 准备阶段 + 高空传送 + 方块恢复
+
+#### 海洋生物群系避让
+- **GameManager.startGame()** — 抽取区块后检测区域内是否包含 `ocean`/`deep_` 生物群系
+- 若检测到海洋区块，自动重新随机选取起点区块（最多 100 次），避免玩家在无法生存的水域开局
+
+#### 准备阶段（10 秒无敌）
+- 游戏开始后进入*准备阶段*：
+  - 所有玩家设置为 `invulnerable = true`（10 秒无敌保护）
+  - 玩家传送到游戏区域中心高空 **Y=150**
+  - 客户端 HUD 中央大字显示 `游戏即将开始` + 倒计时数字 + `高空坠落中… 无敌保护中…`
+- 准备阶段内不触发词条、不受边界越界惩罚（传送回高空中心）
+- 10 秒后调用 `startPhase2()` 正式开局：无敌取消、词条分配、倒计时启动
+
+#### 方块保存与恢复
+- **saveAreaBlocks()** — 游戏开始时遍历边界区域内所有非空气方块，存入 `savedBlocks` HashMap
+- **restoreAreaBlocks()** — 游戏结束时清空区域内后建方块，恢复原始方块状态
+- 方块实体 NBT 恢复因 1.21.4 API 变更暂时跳过（`createCommandRegistryWrapper()` 签名不兼容）
+- 边界 Y 范围：`world.getBottomY()` ~ `地表高度 + 64`（保守上界，避免漏掉高塔建筑）
+
+#### 游戏结束恢复
+- 所有玩家传送回世界出生点（`getSpawnPoint().getPos()`）
+- 边界数据清除、背包清空并返还游戏书本
+
+#### 边界 HUD 接近警告
+- **BoundaryRenderer.java** — 因 1.21.11 渲染管线全面重构，3D 边界线渲染改为 HUD 文字提示
+- 当玩家距离边界 ≤ 3 格时，屏幕底部显示红色警告 `⚠ 接近边界！越界将传送回中心 [方向]`
+- 服务器端 `enforceBoundary()` 仍照常生效（越界传送 + 提示）
+
+### 4. MC 1.21.11 API 兼容修复
+
+#### 服务端编译修复
+- `ServerWorld.getSpawnPos()` → `getSpawnPoint().getPos()`（1.21.4 中 SpawnPoint 改为 record，通过 `getPos()` 获取 BlockPos）
+- `world.getTopY()` 无参版本已移除，统一使用 3 参数版本 `getTopY(Heightmap.Type, int, int)`
+- 方块实体 NBT 保存/恢复跳过：`createNbt(registryWrapper)` 需 `getRegistryManager()`，`read()` 需 `RegistryWrapper.WrapperLookup`（`DynamicRegistryManager` 不再实现此接口）
+
+#### 客户端编译修复
+- `DrawContext.getMatrices()` 返回 `Matrix3x2fStack`（非 `MatrixStack`），无 `push()`/`pop()`/`scale()` 方法 → 改用 `drawCenteredTextWithShadow()` 替代缩放渲染
+- `WorldRenderEvents` 在 Fabric API 0.141.4+1.21.11 中已移除 → BoundaryRenderer 注册方法改为空操作
+- 渲染管线重构：`RenderSystem.setShader()`、`tessellator.draw()`、`BufferRenderer.drawWithGlobalProgram()`、`VertexFormat.DrawMode` 全部移除 → 改用新 GPU 管线（`RenderPipeline`/`GpuBuffer`/`MeshData`/`RenderPass`），因此 3D 边界线渲染改为 HUD 文字方案
+- `Camera.getPos()` → `Camera.getCameraPos()`（1.21.11 中更名）
+
+### 5. 边界可视化 + 出生点 Y 修复
+
+#### Glowstone 边界标记方块
+- 边界不再只有 HUD 文字提示，现在会在边界四边地表放置 **Glowstone（荧石）** 方块
+- 每 3 格放置一个标记，四边（北/南/西/东）全覆盖，从高空坠落时清晰可见
+- 方块保存/恢复机制自动清理边界标记（`saveAreaBlocks` 先保存原始方块 → 放置标记 → `restoreAreaBlocks` 恢复原始方块）
+- `placeBoundaryMarkers()` — 新增方法，在 `startGame()` 中 `saveAreaBlocks()` 之后调用
+
+#### 出生点 Y 坐标修复
+- **问题**：游戏结束时玩家可能被传送到基岩层（Y 过低）
+- **原因**：`getSpawnPoint().getPos()` 返回的 BlockPos 中 Y 可能是默认值，而 `getTopY()` 在该位置可能返回异常值
+- **修复**：`spawnY = Math.max(spawnPos.getY(), surfaceY)` — 取两者中较大值
+- 额外兜底：若结果仍 ≤ `bottomY + 5`，回退到海平面 64
+
+### 6. 原版标题倒计时 + 黑曜石边界墙 + 默认 3×3 + 玩家高亮
+
+#### 准备阶段倒计时改用原版标题
+- 10 秒准备阶段不再使用客户端 HUD 大字渲染，改用 Minecraft 原版 **Title/Subtitle** 系统
+- 每秒向全体玩家发送 `TitleS2CPacket`（金色大字倒计时数字）+ `SubtitleS2CPacket`（"游戏即将开始…"）
+- `TitleFadeS2CPacket(5, 15, 5)` 控制渐入/停留/渐出时间
+- 准备结束时发送空 Title/Subtitle 清除
+
+#### 边界黑曜石墙（基岩层 ~ Y=225）
+- 替换之前的 Glowstone 地表标记，改为四边完整的 **黑曜石（Obsidian）墙**
+- 每边从 `world.getBottomY()` 到 Y=225 全覆盖，高空坠落时极具视觉冲击力
+- 四角只放一次避免重复，西/东边跳过已放置的角
+- `buildObsidianWall()` 新增方法，`endGame` 中显式清理所有墙方块再调用 `restoreAreaBlocks`
+
+#### 区块范围默认 3×3
+- `GameSettings.DEFAULT_GAME_RANGE` 2 → **3**（48×48 格）
+
+#### 玩家高亮（队伍颜色）
+- `startPhase2` 中 `assignVanillaTeams` 之后，给所有玩家添加 `StatusEffects.GLOWING`（永久时长）
+- 高亮颜色由原版计分板队伍颜色决定（红/蓝/绿/黄/紫 等）
+- `endGame` 中移除所有玩家的 Glowing 效果
+
+### 7. 出生点传送修复（Heightmap 缓存过期 → 手动搜索安全 Y）
+
+#### 问题
+- 游戏结束时 `restoreAreaBlocks()` 大量修改方块后，`getTopY(Heightmap.Type.WORLD_SURFACE)` 可能因缓存延迟返回错误的低位 Y 值
+- 导致玩家被传送到地底方块中（卡住无法移动）
+
+#### 修复：新增 `findSafeSurfaceY()` 方法
+- 从世界顶部向下逐格搜索，找到第一个实心方块（`blocksMovement() == true`）
+- 确认其上方 2 格（脚部 + 头部）均为非碰撞方块，返回脚部 Y 坐标
+- 不依赖任何可能过期的 Heightmap，完全自主计算
+- 替代位置：
+  - `endGame()` — 传送回世界出生点
+  - `enforceBoundary()` — 越界传送回区域中心
+- **注意**：MC 1.21.1 中 `getTopY()` 无参方法已移除，改用 `bottomY + world.getHeight() - 1`
+
+### 8. 玩家死亡后复活位置修复
+
+#### 问题
+- 玩家死亡后复活在世界出生点，而非游戏区域内
+- 玩家死亡后高亮（GLOWING）效果消失（MC 会清除所有状态效果）
+
+#### 修复：准备阶段结束时设置出生点
+- `startPhase2()` — 传送玩家到游戏区域地表后，调用 `player.setSpawnPoint()` 将该位置设为玩家个人出生点
+  - 使用 `WorldProperties.SpawnPoint.create()` + `ServerPlayerEntity.Respawn`（Fabric 1.21.11+ API 签名）
+  - MC 原生死亡复活机制自动将玩家复活到该出生点
+- `endGame()` — 游戏结束时调用 `player.setSpawnPoint(null, false)` 清除个人出生点，恢复世界出生点
+
+#### 修复：复活后重新添加高亮
+- 新增 `handlePlayerRespawn()` 方法 — 玩家复活时重新添加无限时长的 `GLOWING` 效果
+- `WordTriggerDetector.AFTER_RESPAWN` 事件中调用（无需延迟，出生点已由 MC 自动处理）
+
+### 9. 出生点 3×3 黑曜石平台
+
+- 新增 `buildObsidianPlatform()` 方法 — 在指定地表坐标生成 3×3 黑曜石平台
+- `startPhase2()` — 传送玩家到游戏区域地表之前，先在出生点铺设黑曜石平台
+- **目的**：防止 TNT 等爆炸物破坏出生点（黑曜石爆炸抗性 1200）
+
+### 10. 准备阶段满血满饥饿初始化
+
+- `startPhase2()` — 关闭无敌的同时，为每位玩家执行：
+  ```java
+  player.setHealth(player.getMaxHealth());      // 生命值恢复至上限
+  player.getHungerManager().setFoodLevel(20);     // 饥饿值满格
+  player.getHungerManager().setSaturationLevel(5.0f); // 饱和度满格
+  ```
+- **效果**：无论游戏范围是否启用，准备阶段结束后所有玩家均以满状态开始游戏
+
+### 11. 烟花发射 Thread.sleep 阻塞主线程 → 连接超时
+
+#### 问题
+- "60s不潜行" 词条触发后，若导致某玩家淘汰、场上只剩 1 人，触发 `checkWinCondition` → `spawnFireworks`
+- `spawnFireworks` 在服务端主线程中使用 `Thread.sleep(delay * 50)` 延迟发射烟花，累计阻塞可达 **5 秒**
+- 服务端主线程长时间阻塞导致玩家 KeepAlive 超时断连
+
+#### 修复
+- 延迟发射的烟花改为在独立线程中 `sleep`，然后通过 `server.execute()` 回到主线程生成烟花实体
+- 第一枚烟花（delay=0）仍在主线程立即发射
+- 不再阻塞服务端主线程
+
+### 12. 囚笼试炼苦力怕延迟修复
+
+#### 问题
+- `tickCageTrial` 每 tick 都被调用（事件总长 10s），每次立即生成苦力怕并清空 map
+- 导致苦力怕在第 1 tick（即事件开始瞬间）就出现，而非预期的 5 秒后
+
+#### 修复
+- `tickCageTrial` 新增 `remainingSeconds` 参数
+- 仅当 `remainingSeconds == 5`（事件已运行 5s）时才生成苦力怕
+- `tickActiveEvent` 的 `CAGE_TRIAL` 分支传入 `remainingSeconds`
+
+### 13. 玩家互换位置可靠性修复
+
+#### 问题
+- "玩家互换位置" 特殊事件小概率能触发、大部分情况不触发
+- **根因 1**：`Collections.shuffle` 随机打乱，有一定概率玩家位置不变（shuffle 后原地不动）
+- **根因 2**：`player.teleport(world, x, y, z, Set.of(), yaw, pitch, false)` 8 参数重载在 Fabric 中不够可靠
+
+#### 修复
+- **换位策略**：`Collections.shuffle` → **循环右移一位**（确定性，100% 每人换到另一位玩家的位置）
+- **传送 API**：`player.teleport(...)` → **`player.requestTeleport(x, y, z)`**（原版 `/tp` 底层 API，最可靠）
+- 玩家视角（yaw/pitch）保持不变，仅位置交换
+
+### 14. 版本号正式发布 1.0
+
+- `gradle.properties` — `mod_version=1.0-SNAPSHOT` → `mod_version=1.0`
+- 模组核心功能已稳定，正式标记为 1.0 版本
+
+---
+
 ## 2026-06-03
 
 ### 1. 全员变幼体缩放调整

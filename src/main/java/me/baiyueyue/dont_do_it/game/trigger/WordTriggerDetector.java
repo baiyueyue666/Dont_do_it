@@ -403,6 +403,8 @@ public class WordTriggerDetector {
             notRespawn10sTriggered.remove(id);
             GameManager.getInstance().onPlayerTriggered(
                     ((ServerWorld) newPlayer.getEntityWorld()).getServer(), newPlayer, TriggerType.RESPAWN);
+            // 重新添加高亮效果（死亡会清除状态效果，复活位置由出生点自动决定）
+            GameManager.getInstance().handlePlayerRespawn(newPlayer);
         });
 
         // ---- Tick 轮询：潜行/疾跑状态变化检测 ----

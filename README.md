@@ -30,56 +30,92 @@
 
 通过游戏书打开设置界面，可配置：
 
-| 设置项 | 可选值 |
-|--------|--------|
-| 词条更换倒计时 | 60s / 120s / 180s / 300s |
-| 特殊事件触发倒计时 | 关闭 / 60s / 180s / 300s / 420s |
-| 血量上限 | 3 / 5 / 10 / 15 / 30 心 |
+| 设置项 | 可选值 | 默认值 |
+|--------|--------|--------|
+| 词条更换倒计时 | 60s / 120s / 180s / 300s | 180s |
+| 特殊事件触发倒计时 | 关闭 / 60s / 180s / 300s / 420s | 300s |
+| 血量上限 | 3 / 5 / 10 / 15 / 30 心 | 15 心 |
+| 游戏范围 | 关闭 / 1×1 / 2×2 / 3×3 区块 | 3×3 区块 |
+
+### 🌍 游戏范围
+
+开启后，每局游戏会在世界随机位置圈定一块区块区域作为游戏场地：
+- **随机性**：基于世界种子与当前时间生成随机坐标（±500 区块范围），每局地图完全不同
+- **边界限制**：玩家不得越出边界，否则每秒自动传送回区域中心
+- **区块大小**：1×1=16×16格 / 2×2=32×32格 / 3×3=48×48格
+- **关闭时**：无边界限制，玩家可在全世界自由活动（传统模式）
 
 ---
 
 ## 🎯 词条类型（共 171 种词条，26 类触发行为）
 
-| 类别 | 词条示例 |
-|------|----------|
-| 基础行为 (15) | 潜行、攻击生物、打怪、破坏方块、挖矿、放置方块、搭方块、发送聊天消息、打字说话、受到伤害、吃东西、疾跑、丢弃物品、打开容器、捡起物品 |
-| 挖掘矿石 (7) | 挖掘木头、石头、煤矿、铁矿、铜矿、金矿、钻石矿 |
-| 挖掘细分 (7) | 挖掘安山岩、闪长岩、深板岩、花岗岩、凝灰岩、工作台、熔炉 |
-| 拾取类 (2) | 拾取原木、获得钻石 |
-| 合成类 (10) | 合成工作台、木/石/铁镐、木/石/铁斧、木/石/铁剑 |
-| 视角方向 (6) | 低头、抬头、看向东/南/西/北 |
-| 持续行为 (5) | 禁止不动五秒、持续看向一个方向五秒、连续奔跑30s、连续潜行5s、跳跃10次 |
-| 环境状态 (3) | 自闭（1×2封闭空间）、沉入水中、浮空 |
-| 站立方块 (9) | 站在草方块/树叶/石头/深板岩/安山岩/闪长岩/花岗岩/凝灰岩/基岩上 |
-| 死亡/复活 (10) | 死亡、复活、三/五/十秒不复活、摔死、岩浆里游泳、窒息、溺死、炸死 |
-| 背包物品 (34) | 背包里有煤炭/铁锭/铜锭/工作台/熔炉/斧头/剑/石镐/木镐/铁镐/腐肉/钻石/泥土/磨制安山岩/磨制花岗岩/磨制闪长岩/凝灰岩/石头/平滑石头/树叶/骨头/线/末影珍珠/皮革/羊毛/桶/水桶/岩浆桶；没有铁质工具或防具/没有钻石工具或防具 |
-| 饮食/即时 (3) | 吃腐肉、直接扣一颗心、直接回一颗心 |
-| 伤害细分 (4) | 受到火焰伤害、弹射物伤害、一次性受到5滴血伤害、造成伤害 |
-| 饥饿/高度 (4) | 饱食度低于18、饱食度高于18、玩家高度Y＞70、玩家高度Y＜70 |
-| 攻击类 (2) | 攻击玩家、空手打人 |
-| 距离类 (2) | 距离所有玩家15米、和玩家贴贴 |
-| 经验/等级 (2) | 获得经验、升级 |
-| 穿戴装备 (1) | 穿装备 |
-| 手持物品 (8) | 手持工作台、熔炉、木/铁/石镐、木/石/铁斧 |
-| 快捷栏 (2) | 选中快捷栏第一位、选中快捷栏最后一位 |
-| 下落高度 (1) | 下降5格高度 |
-| 副手/容器/计数 (17) | 副手持盾、打开箱子/熔炉/工作台、杀死铁傀儡、村民交易、放置/丢弃30个方块、30秒/60秒不跳/不潜行/不疾跑 |
-| 放置方块 (10) | 放置泥土、圆石、深板岩圆石、安山岩、花岗岩、闪长岩、凝灰岩、工作台、熔炉、箱子 |
-| 丢弃特定物品 (8) | 丢弃泥土、圆石、深板岩圆石、安山岩、花岗岩、闪长岩、凝灰岩、木镐 |
-| 头顶方块 (2) | 头顶有方块遮挡、头顶无方块遮挡 |
-| 桶操作 (4) | 用桶装水、用桶倒水、用桶装岩浆、用桶倒岩浆 |
+| 类别 | 数量 | 词条 |
+|------|------|------|
+| 基础行为 | 15 | 潜行、攻击生物、打怪、破坏方块、挖矿、放置方块、搭方块、发送聊天消息、打字说话、受到伤害、吃东西、疾跑、丢弃物品、打开容器、捡起物品 |
+| 挖掘矿石 | 7 | 挖掘木头、挖掘石头、挖掘煤矿、挖掘铁矿、挖掘铜矿、挖掘金矿、挖掘钻石矿 |
+| 挖掘细分 | 7 | 挖掘安山岩、挖掘闪长岩、挖掘深板岩、挖掘花岗岩、挖掘凝灰岩、挖掘工作台、挖掘熔炉 |
+| 拾取类 | 2 | 拾取原木、获得钻石 |
+| 合成类 | 10 | 合成工作台、合成木镐、合成石镐、合成铁镐、合成木斧、合成石斧、合成铁斧、合成木剑、合成石剑、合成铁剑 |
+| 视角方向 | 6 | 低头、抬头、看向东方、看向南方、看向西方、看向北方 |
+| 持续行为 | 5 | 禁止不动五秒、持续看向一个方向五秒、连续奔跑30s、连续潜行5s、跳跃10次 |
+| 环境状态 | 3 | 自闭（1×2封闭空间）、沉入水中、浮空 |
+| 站立方块 | 9 | 站在草方块上、站在树叶上、站在石头上、站在深板岩上、站在安山岩上、站在闪长岩上、站在花岗岩上、站在凝灰岩上、站在基岩上 |
+| 死亡/复活 | 10 | 死亡、复活、三秒不复活、五秒不复活、十秒不复活、摔死、岩浆里游泳、窒息、溺死、炸死 |
+| 背包物品 | 30 | 背包里有煤炭、背包里有铁锭、背包里有铜锭、背包里有工作台、背包里有熔炉、背包里有斧头、背包里有剑、背包里有石镐、背包里有木镐、背包里有铁镐、背包里有腐肉、背包里有钻石、背包里有泥土、背包里有磨制安山岩、背包里有磨制花岗岩、背包里有磨制闪长岩、背包里有凝灰岩、背包里有石头、背包里有平滑石头、背包里有树叶、背包里有骨头、背包里有线、背包里有末影珍珠、背包里有皮革、背包里有羊毛、背包里有桶、背包里有水桶、背包里有岩浆桶、背包里没有铁质工具或防具、背包里没有钻石工具或防具 |
+| 饮食/即时 | 3 | 吃腐肉、直接扣一颗心、直接回一颗心 |
+| 伤害细分 | 4 | 受到火焰伤害、弹射物伤害、一次性受到5滴血伤害、造成伤害 |
+| 饥饿/高度 | 4 | 饱食度低于18、饱食度高于18、玩家高度Y＞70、玩家高度Y＜70 |
+| 攻击类 | 2 | 攻击玩家、空手打人 |
+| 距离类 | 2 | 距离所有玩家15米、和玩家贴贴 |
+| 经验/等级 | 2 | 获得经验、升级 |
+| 穿戴装备 | 1 | 穿装备 |
+| 手持物品 | 8 | 手持工作台、手持熔炉、手持木镐、手持铁镐、手持石镐、手持木斧、手持石斧、手持铁斧 |
+| 快捷栏 | 2 | 选中快捷栏第一位、选中快捷栏最后一位 |
+| 下落高度 | 1 | 下降5格高度 |
+| 副手/容器/计数 | 14 | 副手持盾、打开箱子、与熔炉交互、与工作台交互、杀死铁傀儡、村民交易、放置30个方块、丢弃30个方块、30秒不跳、30秒不潜行、30秒不疾跑、60秒不跳、60秒不潜行、60秒不疾跑 |
+| 放置方块 | 10 | 放置泥土、放置圆石、放置深板岩圆石、放置安山岩、放置花岗岩、放置闪长岩、放置凝灰岩、放置工作台、放置熔炉、放置箱子 |
+| 丢弃特定物品 | 8 | 丢弃泥土、丢弃圆石、丢弃深板岩圆石、丢弃安山岩、丢弃花岗岩、丢弃闪长岩、丢弃凝灰岩、丢弃木镐 |
+| 头顶方块 | 2 | 头顶有方块遮挡、头顶无方块遮挡 |
+| 桶操作 | 4 | 用桶装水、用桶倒水、用桶装岩浆、用桶倒岩浆 |
 
 ---
 
 ## ⚡ 特殊事件
 
-特殊事件由独立倒计时控制，倒计时归零时随机触发，影响所有存活玩家。共有 **30 种**特殊事件，含 1 种 1% 概率超级事件。
+特殊事件由独立倒计时控制，倒计时归零时随机触发，影响所有存活玩家。共有 **30 种**特殊事件（含 1 种 1% 概率超级事件）。
 
 | 事件 | 类型 | 效果 |
 |------|------|------|
-| 🔥 怪物狂潮 | 瞬时 | 每位存活玩家周围生成 **3 只**随机敌对生物 |
-| ⚡ 交易商人 | 持续 30s | 1% 超级事件 — 每位玩家身边出现盔甲匠村民，可用钻石换取全套下界合金装备 |
-| 🎯 …等 30 种事件 | — | 包含钻石馈赠、诅咒、美食雨、经验风暴、TNT雨、玩家互换、全员变幼体、粘液附身、箭雨试炼等 |
+| 🔥 怪物狂潮 | 瞬时 | 每位存活玩家周围生成 3 只随机敌对生物 |
+| 💎 钻石馈赠 | 瞬时 | 每位存活玩家获得 15 颗钻石 |
+| 💎 钻石祝福 | 持续 120s | 挖钻石矿回复 1 心 |
+| 💀 钻石诅咒 | 瞬时 | 按背包钻石数量扣除等量血量 |
+| 🌑 日食诅咒 | 瞬时 | 全体获得 1 分钟失明效果 |
+| ☁️ 平静 | 瞬时 | 无事发生，倒计时重新开始 |
+| ☁️ 唉，云朵？ | 瞬时 | 全体获得 30 秒漂浮效果 |
+| 🍖 美食雨 | 持续 10s | 美食从天而降 |
+| 🌟 经验风暴 | 持续 10s | 大量经验球从天而降 |
+| 💚 生命赐福 | 持续 10s | 全体获得生命恢复 II 效果 |
+| ⛏️ 脚下出矿 | 持续 10s | 玩家周围 5×5×5 变为矿物，结束恢复 |
+| 🔨 铁砧暴雨 | 持续 10s | 铁砧从天而降 |
+| 💣 TNT降雨 | 瞬时 | 每位玩家周围生成 20 个点燃的 TNT |
+| ⛏️ 地底塌陷 | 持续 30s | 脚下方块持续破碎 |
+| 🎃 全员南瓜头 | 持续 60s | 强制戴上有绑定诅咒的南瓜头 |
+| 🔀 物品栏洗牌 | 瞬时 | 所有玩家快捷栏物品随机打乱 |
+| 🐔 小鸡天降 | 瞬时 | 每位玩家周围生成 50 只小鸡 |
+| 🔄 玩家互换位置 | 瞬时 | 存活玩家位置随机交换 |
+| 🔥 脚步生火 | 持续 30s | 踩到的方块起火 |
+| 🔒 囚笼试炼 | 持续 10s | 铁栅栏囚禁 + 5 秒后笼内出苦力怕 |
+| 💧 高空落水挑战 | 持续 30s | 传送 100 米高空 + 水桶，落水成功加心 |
+| 🌱 作物速成 | 持续 15s | 脚边作物瞬间成熟 + 小花生成 |
+| 💚 豁免祝福 | 持续 120s | 装备耐久不消耗 |
+| ⚙️ 装备锈蚀 | 持续 120s | 装备耐久五倍消耗 |
+| 🍗 饥饿疫病 | 持续 30s | 饥饿值飞速下降，食物回复减半 |
+| 📦 物资迁徙 | 瞬时 | 玩家背包物品转移至其他玩家 |
+| 👶 全员变幼体 | 持续 60s | 玩家缩小 100 倍 (Baby scale) |
+| 🟢 粘液附身 | 持续 30s | 玩家周围方块变为粘液块 |
+| 🏹 箭雨试炼 | 持续 10s | 箭雨从四面射向玩家，存活加心 |
+| ⚡ 交易商人 | 持续 30s | 1% 超级事件 — 生成村民提供特殊交易，30 秒后消失 |
 
 ---
 
@@ -143,11 +179,20 @@ For example: if your word is "Sneak", pressing Shift to sneak will trigger a pen
 
 Configurable via the Game Book:
 
-| Setting | Options |
-|---------|---------|
-| Word Change Timer | 60s / 120s / 180s / 300s |
-| Special Event Timer | Off / 60s / 180s / 300s / 420s |
-| Max Hearts | 3 / 5 / 10 / 15 / 30 |
+| Setting | Options | Default |
+|---------|---------|---------|
+| Word Change Timer | 60s / 120s / 180s / 300s | 180s |
+| Special Event Timer | Off / 60s / 180s / 300s / 420s | 300s |
+| Max Hearts | 3 / 5 / 10 / 15 / 30 | 15 |
+| Game Range | Off / 1×1 / 2×2 / 3×3 Chunks | 3×3 Chunks |
+
+### 🌍 Game Range (English)
+
+When enabled, each game randomly selects a chunk area in the world as the playing field:
+- **Randomness**: Random coordinates generated from world seed + current time (within ±500 chunks), ensuring a unique map every game
+- **Boundary**: Players cannot leave the area — teleported back to center if they do
+- **Chunk Sizes**: 1×1=16×16 blocks / 2×2=32×32 / 3×3=48×48
+- **Off**: No boundary — traditional free-roam gameplay
 
 ---
 
@@ -165,7 +210,7 @@ Configurable via the Game Book:
 | Environmental (3) | Enclosed (1×2), Submerged, Floating |
 | Standing On (9) | Stand on Grass/Leaves/Stone/Deepslate/Andesite/Diorite/Granite/Tuff/Bedrock |
 | Death/Respawn (10) | Death, Respawn, No Respawn 3s/5s/10s, Death by Fall/Lava/Suffocation/Drown/Explosion |
-| Inventory Items (34) | Has Coal/Iron/Copper/Crafting Table/Furnace/Axe/Sword/Pickaxes/Rotten Flesh/Diamond/Dirt/Polished Stones/Tuff/Stone/Leaves/Bone/String/Ender Pearl/Leather/Wool/Bucket/Water Bucket/Lava Bucket; No Iron Tools/Armor, No Diamond Tools/Armor |
+| Inventory Items (30) | Has Coal/Iron/Copper/Crafting Table/Furnace/Axe/Sword/Pickaxes/Rotten Flesh/Diamond/Dirt/Polished Stones/Tuff/Stone/Leaves/Bone/String/Ender Pearl/Leather/Wool/Bucket/Water Bucket/Lava Bucket; No Iron Tools/Armor, No Diamond Tools/Armor |
 | Food/Instant (3) | Eat Rotten Flesh, Instant Lose Heart, Instant Gain Heart |
 | Damage Types (4) | Take Fire Damage, Projectile Damage, 5-Damage at Once, Deal Damage |
 | Hunger/Height (4) | Hunger Below 18, Hunger Above 18, Y > 70, Y < 70 |
@@ -176,7 +221,7 @@ Configurable via the Game Book:
 | Holding Items (8) | Hold Crafting Table, Furnace, Wooden/Iron/Stone Pickaxe, Wooden/Stone/Iron Axe |
 | Hotbar Slot (2) | Select First Slot, Select Last Slot |
 | Fall Height (1) | Fall 5 Blocks |
-| Offhand/Containers (17) | Hold Shield Offhand, Open Chest/Furnace/Crafting Table, Kill Iron Golem, Villager Trade, Place/Drop 30 Blocks, No Jump/Sneak/Sprint 30s/60s |
+| Offhand/Containers (14) | Hold Shield Offhand, Open Chest/Furnace/Crafting Table, Kill Iron Golem, Villager Trade, Place/Drop 30 Blocks, No Jump/Sneak/Sprint 30s/60s |
 | Place Blocks (10) | Place Dirt, Cobblestone, Cobbled Deepslate, Andesite, Granite, Diorite, Tuff, Crafting Table, Furnace, Chest |
 | Drop Specific (8) | Drop Dirt, Cobblestone, Cobbled Deepslate, Andesite, Granite, Diorite, Tuff, Wooden Pickaxe |
 | Block Above (2) | Block Above Head, No Block Above Head |
@@ -186,13 +231,40 @@ Configurable via the Game Book:
 
 ## ⚡ Special Events (English)
 
-Special events are controlled by an independent countdown timer. When the timer reaches zero, a random event triggers, affecting all surviving players. There are **30** special events, including 1 super event with 1% probability.
+Special events are controlled by an independent countdown timer. When the timer reaches zero, a random event triggers, affecting all surviving players. There are **30** special events (including 1 super event with 1% probability).
 
 | Event | Type | Effect |
 |-------|------|--------|
-| 🔥 Monster Rampage | Instant | Spawns **3** random hostile mobs around each surviving player |
-| ⚡ Trade Merchant | Lasts 30s | 1% super event — Armorer villager appears near each player, trading full netherite gear for diamonds |
-| 🎯 …30 events total | — | Including Diamond Gift, Curse, Food Rain, XP Storm, TNT Rain, Player Swap, Everyone Baby, Slime Possession, Arrow Trial, etc. |
+| 🔥 Monster Rampage | Instant | Spawns 3 random hostile mobs around each surviving player |
+| 💎 Diamond Gift | Instant | Each surviving player receives 15 diamonds |
+| 💎 Diamond Blessing | 120s | Mining diamond ore restores 1 heart |
+| 💀 Diamond Curse | Instant | Lose hearts equal to the number of diamonds in inventory |
+| 🌑 Eclipse Curse | Instant | All players receive 1 minute of Blindness |
+| ☁️ Calm | Instant | Nothing happens, countdown resets |
+| ☁️ Oh, Clouds? | Instant | All players receive 30 seconds of Levitation |
+| 🍖 Food Rain | 10s | Food drops from the sky |
+| 🌟 XP Storm | 10s | Massive XP orbs rain from the sky |
+| 💚 Life Blessing | 10s | All players receive Regeneration II |
+| ⛏️ Ore Underfoot | 10s | 5×5×5 area around players turns into ores, restored at end |
+| 🔨 Anvil Storm | 10s | Anvils rain from the sky |
+| 💣 TNT Rain | Instant | 20 lit TNT spawn around each surviving player |
+| ⛏️ Cave In | 30s | Blocks under players continuously break |
+| 🎃 Pumpkin Head | 60s | All players forced to wear a Curse of Binding pumpkin head |
+| 🔀 Inventory Shuffle | Instant | Hotbar items randomly shuffled for all players |
+| 🐔 Chicken Rain | Instant | 50 chickens spawn around each surviving player |
+| 🔄 Player Swap | Instant | Surviving players' positions randomly exchanged |
+| 🔥 Fire Trail | 30s | Blocks players walk on catch fire |
+| 🔒 Cage Trial | 10s | Players trapped in iron bar cages + creeper spawns after 5 seconds |
+| 💧 Sky Water Challenge | 30s | Teleported 100m up with a water bucket — successful water landing grants a heart |
+| 🌱 Crop Speed Grow | 15s | Nearby crops instantly mature + small flowers spawn |
+| 💚 Durability Blessing | 120s | Equipment durability does not decrease |
+| ⚙️ Equipment Rust | 120s | Equipment durability decreases at 5× speed |
+| 🍗 Hunger Disease | 30s | Hunger drops rapidly, food restores half |
+| 📦 Inventory Migration | Instant | Players' inventory items transferred to other players |
+| 👶 Everyone Baby | 60s | Players shrink 100× (Baby scale) |
+| 🟢 Slime Possession | 30s | Blocks around players turn into slime blocks |
+| 🏹 Arrow Trial | 10s | Arrows fire from all directions — surviving grants a heart |
+| ⚡ Trade Merchant | 30s | 1% super event — villager with special trades spawns per player, disappears after 30s |
 
 ---
 

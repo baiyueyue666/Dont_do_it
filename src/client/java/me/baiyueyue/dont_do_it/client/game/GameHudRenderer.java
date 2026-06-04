@@ -36,6 +36,9 @@ public class GameHudRenderer {
 
     public record NotificationEntry(String type, String message, long createdAtMs) {}
 
+    /** 准备阶段倒计时（秒），-1 = 未激活 */
+    public static int prepCountdown = -1;
+
     /** 对手数据条目（由 ClientPacketHandler 填充） */
     public record OpponentEntry(UUID playerId, String teamColor, String wordText,
                                  int hearts, boolean eliminated) {}
@@ -66,20 +69,50 @@ public class GameHudRenderer {
         if (currentState != GameState.RUNNING && currentState != GameState.ENDING) {
             // 安全清理：非游戏状态时移除所有 Boss 血条
             BossBarManager.clear();
+            BoundaryRenderer.clear();
             return;
         }
 
         int screenWidth = client.getWindow().getScaledWidth();
         int screenHeight = client.getWindow().getScaledHeight();
 
+        // ===== 准备阶段倒计时（屏幕中央大字） =====
+        if (prepCountdown > 0) {
+            renderPrepCountdown(context, client, screenWidth, screenHeight);
+            return; // 准备阶段不渲染其他 HUD
+        }
+
         // ===== 中央通知 =====
         renderCenterNotifications(context, client, screenWidth);
 
         // ===== 左侧对手列表 =====
         renderOpponentList(context, client, screenWidth, screenHeight);
+
+        // ===== 边界接近提示 =====
+        BoundaryRenderer.renderHud(context, client, screenWidth, screenHeight);
     }
 
     // ==================== 中央通知 ====================
+
+    /** 准备阶段倒计时大字（1.21.11 - MatrixStack 已移除 push/pop/scale） */
+    private static void renderPrepCountdown(DrawContext context, MinecraftClient client,
+                                             int screenWidth, int screenHeight) {
+        int centerX = screenWidth / 2;
+        int centerY = screenHeight / 2;
+
+        // 半透明黑色背景
+        context.fill(0, 0, screenWidth, screenHeight, 0x40000000);
+
+        // 1.21.11 API: 使用 drawCenteredTextWithShadow 替代矩阵缩放
+        context.drawCenteredTextWithShadow(client.textRenderer,
+                Text.literal("§e§l游戏即将开始"), centerX, centerY - 35, 0xFFFF55);
+
+        context.drawCenteredTextWithShadow(client.textRenderer,
+                Text.literal("§6§l" + prepCountdown), centerX, centerY - 10, 0xFFAA00);
+
+        context.drawCenteredTextWithShadow(client.textRenderer,
+                Text.literal("§7高空坠落中… 无敌保护中…"), centerX, centerY + 20, 0xAAAAAA);
+    }
 
     private static void renderCenterNotifications(DrawContext context, MinecraftClient client, int screenWidth) {
         long now = System.currentTimeMillis();

@@ -6,8 +6,8 @@ package me.baiyueyue.dont_do_it.game;
 public class GameSettings {
 
     public static final int DEFAULT_HEARTS = 15;
-    public static final int DEFAULT_TIMER_SECONDS = 60;
-    public static final int DEFAULT_SPECIAL_EVENT_TIMER_SECONDS = 180;
+    public static final int DEFAULT_TIMER_SECONDS = 180;
+    public static final int DEFAULT_SPECIAL_EVENT_TIMER_SECONDS = 300;
 
     /** 词条更换倒计时选项（秒） */
     public static final int[] TIMER_OPTIONS = {60, 120, 180, 300};
@@ -18,9 +18,14 @@ public class GameSettings {
     /** 血量上限选项 */
     public static final int[] HEART_OPTIONS = {3, 5, 10, 15, 30};
 
+    /** 游戏范围选项：0=关闭，1=1×1区块，2=2×2区块，3=3×3区块 */
+    public static final int[] GAME_RANGE_OPTIONS = {0, 1, 2, 3};
+    public static final int DEFAULT_GAME_RANGE = 3;
+
     private int wordChangeTimerSeconds = DEFAULT_TIMER_SECONDS;
     private int specialEventTimerSeconds = DEFAULT_SPECIAL_EVENT_TIMER_SECONDS;
     private int defaultHearts = DEFAULT_HEARTS;
+    private int gameRange = DEFAULT_GAME_RANGE;
 
     public int getWordChangeTimerSeconds() { return wordChangeTimerSeconds; }
 
@@ -33,6 +38,13 @@ public class GameSettings {
     public int getDefaultHearts() { return defaultHearts; }
 
     public void setDefaultHearts(int hearts) { this.defaultHearts = hearts; }
+
+    public int getGameRange() { return gameRange; }
+
+    public void setGameRange(int range) { this.gameRange = range; }
+
+    /** 游戏范围是否启用 */
+    public boolean isGameRangeEnabled() { return gameRange > 0; }
 
     /** 特殊事件是否启用 */
     public boolean isSpecialEventEnabled() { return specialEventTimerSeconds > 0; }
@@ -73,9 +85,22 @@ public class GameSettings {
         return defaultHearts;
     }
 
+    /** 循环切换到下一个游戏范围选项 */
+    public int nextGameRangeOption() {
+        for (int i = 0; i < GAME_RANGE_OPTIONS.length; i++) {
+            if (GAME_RANGE_OPTIONS[i] == gameRange) {
+                gameRange = GAME_RANGE_OPTIONS[(i + 1) % GAME_RANGE_OPTIONS.length];
+                return gameRange;
+            }
+        }
+        gameRange = GAME_RANGE_OPTIONS[0];
+        return gameRange;
+    }
+
     public void reset() {
         wordChangeTimerSeconds = DEFAULT_TIMER_SECONDS;
         specialEventTimerSeconds = DEFAULT_SPECIAL_EVENT_TIMER_SECONDS;
         defaultHearts = DEFAULT_HEARTS;
+        gameRange = DEFAULT_GAME_RANGE;
     }
 }

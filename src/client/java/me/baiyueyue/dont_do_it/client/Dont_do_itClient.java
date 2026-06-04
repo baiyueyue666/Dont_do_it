@@ -1,6 +1,7 @@
 package me.baiyueyue.dont_do_it.client;
 
 import me.baiyueyue.dont_do_it.client.game.BossBarManager;
+import me.baiyueyue.dont_do_it.client.game.BoundaryRenderer;
 import me.baiyueyue.dont_do_it.client.game.ClientPacketHandler;
 import me.baiyueyue.dont_do_it.client.game.GameHudRenderer;
 import me.baiyueyue.dont_do_it.client.screen.GameBookScreen;
@@ -18,7 +19,7 @@ public class Dont_do_itClient implements ClientModInitializer {
             net.minecraft.client.MinecraftClient.getInstance()
                     .setScreen(new GameBookScreen(Text.literal("§6不要做挑战")));
         });
-        GameBookItem.setSettingsOpener((wordTimer, specialEventTimer, hearts, mode) -> {
+        GameBookItem.setSettingsOpener((wordTimer, specialEventTimer, hearts, gameRange, mode) -> {
             SettingsScreen.Mode modeEnum;
             String title;
             switch (mode) {
@@ -30,13 +31,17 @@ public class Dont_do_itClient implements ClientModInitializer {
                     modeEnum = SettingsScreen.Mode.HEARTS;
                     title = "§6血量上限";
                     break;
+                case "GAME_RANGE":
+                    modeEnum = SettingsScreen.Mode.GAME_RANGE;
+                    title = "§6游戏范围";
+                    break;
                 default:
                     modeEnum = SettingsScreen.Mode.WORD_TIMER;
                     title = "§6词条更换倒计时";
                     break;
             }
             net.minecraft.client.MinecraftClient.getInstance()
-                    .setScreen(new SettingsScreen(Text.literal(title), wordTimer, specialEventTimer, hearts, modeEnum));
+                    .setScreen(new SettingsScreen(Text.literal(title), wordTimer, specialEventTimer, hearts, gameRange, modeEnum));
         });
 
         // 注册 HUD 渲染
@@ -47,5 +52,8 @@ public class Dont_do_itClient implements ClientModInitializer {
 
         // 注册数据包接收
         ClientPacketHandler.register();
+
+        // 注册区块边界渲染
+        BoundaryRenderer.register();
     }
 }

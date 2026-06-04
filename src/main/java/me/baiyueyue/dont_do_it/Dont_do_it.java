@@ -61,19 +61,23 @@ public class Dont_do_it implements ModInitializer {
                             Text.literal("§a✔ 词条更换时间已设为 §e%d 秒".formatted(payload.timerSeconds())), true);
                 });
 
-        // 客户端更新完整设置（含特殊事件）
+        // 客户端更新完整设置（含特殊事件+血量+游戏范围）
         ServerPlayNetworking.registerGlobalReceiver(GamePackets.UpdateSettingsFullPayload.ID,
                 (payload, context) -> {
                     var settings = GameManager.getInstance().getSettings();
                     settings.setWordChangeTimerSeconds(payload.wordTimerSeconds());
                     settings.setSpecialEventTimerSeconds(payload.specialEventTimerSeconds());
                     settings.setDefaultHearts(payload.defaultHearts());
+                    settings.setGameRange(payload.gameRange());
                     String specialEventMsg = payload.specialEventTimerSeconds() == 0
                             ? "§c关闭"
                             : "§6" + payload.specialEventTimerSeconds() + "秒";
+                    String gameRangeMsg = payload.gameRange() == 0
+                            ? "§c关闭"
+                            : "§3" + payload.gameRange() + "×" + payload.gameRange() + "区块";
                     context.player().sendMessage(
-                            Text.literal("§a✔ 词条更换: §e%d秒 §7| §a特殊事件: %s §7| §a血量上限: §c%d"
-                                    .formatted(payload.wordTimerSeconds(), specialEventMsg, payload.defaultHearts())), true);
+                            Text.literal("§a✔ 词条更换: §e%d秒 §7| §a特殊事件: %s §7| §a血量上限: §c%d §7| §a游戏范围: %s"
+                                    .formatted(payload.wordTimerSeconds(), specialEventMsg, payload.defaultHearts(), gameRangeMsg)), true);
                 });
 
         // 玩家加入时给予书本（仅在 WAITING 状态下发放）

@@ -108,5 +108,29 @@ public class ClientPacketHandler {
                                 payload.displayText(), payload.percent(), color);
                     });
                 });
+
+        // ---- 游戏范围边界 ----
+        ClientPlayNetworking.registerGlobalReceiver(GamePackets.GameBoundaryPayload.ID,
+                (payload, context) -> {
+                    context.client().execute(() -> {
+                        BoundaryRenderer.setBoundary(
+                                payload.minX(), payload.minZ(),
+                                payload.maxX(), payload.maxZ());
+                    });
+                });
+
+        // ---- 准备阶段倒计时 ----
+        ClientPlayNetworking.registerGlobalReceiver(GamePackets.PrepCountdownPayload.ID,
+                (payload, context) -> {
+                    context.client().execute(() -> {
+                        int sec = payload.seconds();
+                        if (sec > 0) {
+                            GameHudRenderer.prepCountdown = sec;
+                            GameHudRenderer.currentState = GameState.RUNNING;
+                        } else {
+                            GameHudRenderer.prepCountdown = -1;
+                        }
+                    });
+                });
     }
 }
